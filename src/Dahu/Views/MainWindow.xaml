@@ -1,0 +1,365 @@
+<Window x:Class="Dahu.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="clr-namespace:Dahu.Core"
+        xmlns:m="clr-namespace:Dahu.Models"
+        Title="{Binding [App.Title], Source={x:Static core:Loc.I}}"
+        Icon="/Assets/dahu.ico"
+        MinWidth="900" MinHeight="560"
+        FontFamily="Segoe UI" FontSize="12.5"
+        WindowStartupLocation="CenterScreen">
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{x:Static core:Commands.Refresh}" />
+        <KeyBinding Key="F" Modifiers="Ctrl" Command="{x:Static core:Commands.FocusFilter}" />
+    </Window.InputBindings>
+    <Window.CommandBindings>
+        <CommandBinding Command="{x:Static core:Commands.Refresh}" Executed="Refresh_Click" />
+        <CommandBinding Command="{x:Static core:Commands.FocusFilter}" Executed="FocusFilter" />
+    </Window.CommandBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushLight}" BorderThickness="0,0,0,1" Padding="10,8">
+            <DockPanel LastChildFill="True">
+                <Button x:Name="BtnRefresh" DockPanel.Dock="Left" Style="{StaticResource PrimaryButton}" Click="Refresh_Click" ToolTip="F5">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#x21bb;" FontSize="15" Margin="0,-2,6,0" />
+                        <TextBlock Text="{Binding [Btn.Refresh], Source={x:Static core:Loc.I}}" />
+                    </StackPanel>
+                </Button>
+                <ToggleButton x:Name="BtnPause" DockPanel.Dock="Left" Margin="0,0,6,0" Padding="10,4" Content="{Binding [Btn.Pause], Source={x:Static core:Loc.I}}" Checked="Pause_Changed" Unchecked="Pause_Changed" />
+                <CheckBox x:Name="ChkActiveOnly" DockPanel.Dock="Left" Margin="10,0,10,0" VerticalAlignment="Center" Content="{Binding [Filter.ActiveOnly], Source={x:Static core:Loc.I}}" Checked="Filter_Changed" Unchecked="Filter_Changed" />
+                <Grid>
+                    <TextBox x:Name="TxtFilter" TextChanged="Filter_Changed" MaxWidth="600" HorizontalAlignment="Left" MinWidth="360" />
+                    <TextBlock x:Name="TxtFilterHint" Text="{Binding [Filter.Placeholder], Source={x:Static core:Loc.I}}" Foreground="#999" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" HorizontalAlignment="Left" />
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <TabControl x:Name="Tabs" Grid.Row="1" BorderThickness="0,1,0,0" Padding="8" SelectionChanged="Tabs_SelectionChanged">
+
+            <TabItem Header="{Binding [Tab.Sessions], Source={x:Static core:Loc.I}}">
+                <DataGrid x:Name="GridSessions" MouseDoubleClick="GridSessions_DoubleClick">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding State}" Value="Disconnected">
+                                    <Setter Property="Foreground" Value="{StaticResource DisconnectedBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsUserSession}" Value="False">
+                                    <Setter Property="FontStyle" Value="Italic" />
+                                    <Setter Property="Foreground" Value="#999" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+
+                        <DataGridTextColumn x:Name="ColServer" Header="{Binding [Col.Server], Source={x:Static core:Loc.I}}" Binding="{Binding Server}" Width="150" />
+                        <DataGridTextColumn x:Name="ColSessionId" Header="{Binding [Col.SessionId], Source={x:Static core:Loc.I}}" Binding="{Binding SessionId}" Width="45" />
+                        <DataGridTextColumn x:Name="ColUser" Header="{Binding [Col.User], Source={x:Static core:Loc.I}}" Binding="{Binding UserName}" Width="130" />
+                        <DataGridTextColumn x:Name="ColDomain" Header="{Binding [Col.Domain], Source={x:Static core:Loc.I}}" Binding="{Binding Domain}" Width="90" />
+                        <DataGridTextColumn x:Name="ColState" Header="{Binding [Col.State], Source={x:Static core:Loc.I}}" Binding="{Binding StateText}" Width="90" />
+                        <DataGridTextColumn x:Name="ColClient" Header="{Binding [Col.Client], Source={x:Static core:Loc.I}}" Binding="{Binding ClientName}" Width="130" />
+                        <DataGridTextColumn x:Name="ColClientIp" Header="{Binding [Col.ClientIp], Source={x:Static core:Loc.I}}" Binding="{Binding ClientIp}" Width="110" />
+                        <DataGridTextColumn x:Name="ColCollection" Header="{Binding [Col.Collection], Source={x:Static core:Loc.I}}" Binding="{Binding Collection}" Width="120" />
+                        <DataGridTextColumn x:Name="ColType" Header="{Binding [Col.Type], Source={x:Static core:Loc.I}}" Binding="{Binding AppType}" Width="80" />
+                        <DataGridTextColumn x:Name="ColLogon" Header="{Binding [Col.Logon], Source={x:Static core:Loc.I}}" Binding="{Binding LogonTime, StringFormat=dd/MM HH:mm:ss}" Width="110" />
+                        <DataGridTextColumn x:Name="ColConnect" Header="{Binding [Col.Connect], Source={x:Static core:Loc.I}}" Binding="{Binding ConnectTime, StringFormat=dd/MM HH:mm:ss}" Width="110" />
+                        <DataGridTextColumn x:Name="ColDisconnect" Header="{Binding [Col.Disconnect], Source={x:Static core:Loc.I}}" Binding="{Binding DisconnectTime, StringFormat=dd/MM HH:mm:ss}" Width="110" />
+                        <DataGridTextColumn x:Name="ColIdle" Header="{Binding [Col.Idle], Source={x:Static core:Loc.I}}" Binding="{Binding IdleText}" Width="85" SortMemberPath="IdleTime" />
+                        <DataGridTextColumn x:Name="ColResolution" Header="{Binding [Col.Resolution], Source={x:Static core:Loc.I}}" Binding="{Binding Resolution}" Width="105" />
+                        <DataGridTextColumn x:Name="ColProtocol" Header="{Binding [Col.Protocol], Source={x:Static core:Loc.I}}" Binding="{Binding Protocol}" Width="70" />
+                        <DataGridTextColumn x:Name="ColClientBuild" Header="{Binding [Col.ClientBuild], Source={x:Static core:Loc.I}}" Binding="{Binding ClientBuild}" Width="75" />
+                        <DataGridTextColumn x:Name="ColStation" Header="{Binding [Col.Station], Source={x:Static core:Loc.I}}" Binding="{Binding StationName}" Width="100" />
+                    </DataGrid.Columns>
+                    <DataGrid.ContextMenu>
+                        <ContextMenu x:Name="SessionsMenu">
+                            <MenuItem Header="{Binding [Menu.Details], Source={x:Static core:Loc.I}}" Click="SessionDetails_Click" FontWeight="SemiBold" />
+                            <MenuItem Header="{Binding [Menu.Processes], Source={x:Static core:Loc.I}}" Click="SessionProcesses_Click" />
+                            <MenuItem Header="{Binding [Menu.AdInfo], Source={x:Static core:Loc.I}}" Click="SessionAd_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.Shadow], Source={x:Static core:Loc.I}}" Click="Shadow_Click" />
+                            <MenuItem Header="{Binding [Menu.ShadowView], Source={x:Static core:Loc.I}}" Click="ShadowView_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.Message], Source={x:Static core:Loc.I}}" Click="SessionMessage_Click" />
+                            <MenuItem Header="{Binding [Menu.Disconnect], Source={x:Static core:Loc.I}}" Click="Disconnect_Click" />
+                            <MenuItem Header="{Binding [Menu.Logoff], Source={x:Static core:Loc.I}}" Click="Logoff_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.Profile], Source={x:Static core:Loc.I}}" Click="SessionProfile_Click" />
+                            <MenuItem Header="{Binding [Menu.ProfileHistory], Source={x:Static core:Loc.I}}" Click="SessionHistory_Click" />
+                            <MenuItem Header="{Binding [Menu.PingClient], Source={x:Static core:Loc.I}}" Click="PingClient_Click" />
+                            <MenuItem Header="{Binding [Menu.RdpClient], Source={x:Static core:Loc.I}}" Click="RdpClient_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.CopyUser], Source={x:Static core:Loc.I}}" Click="CopyUser_Click" />
+                            <MenuItem Header="{Binding [Menu.CopyIp], Source={x:Static core:Loc.I}}" Click="CopyIp_Click" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="{Binding [Tab.Servers], Source={x:Static core:Loc.I}}">
+                <DataGrid x:Name="GridServers" MouseDoubleClick="GridServers_DoubleClick">
+                    <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Online}" Value="False">
+                                    <Setter Property="Foreground" Value="{StaticResource ErrBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding InMaintenance}" Value="True">
+                                    <Setter Property="Background" Value="#FFF4E5" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGrid.RowStyle>
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="{Binding [Col.Server], Source={x:Static core:Loc.I}}" Binding="{Binding Name}" Width="190" />
+                        <DataGridTextColumn Header="{Binding [Col.Collection], Source={x:Static core:Loc.I}}" Binding="{Binding Collection}" Width="130" />
+                        <DataGridTextColumn Header="{Binding [Col.Mode], Source={x:Static core:Loc.I}}" Binding="{Binding Mode}" Width="150" />
+                        <DataGridTextColumn Header="{Binding [Col.Sessions], Source={x:Static core:Loc.I}}" Binding="{Binding SessionCount}" Width="70" />
+                        <DataGridTextColumn Header="{Binding [Col.Active], Source={x:Static core:Loc.I}}" Binding="{Binding ActiveCount}" Width="65" />
+                        <DataGridTextColumn Header="{Binding [Col.Disconnected], Source={x:Static core:Loc.I}}" Binding="{Binding DisconnectedCount}" Width="95" />
+                        <DataGridTemplateColumn Header="{Binding [Col.Cpu], Source={x:Static core:Loc.I}}" Width="110" SortMemberPath="Cpu">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <ProgressBar Value="{Binding Cpu, Mode=OneWay}" Maximum="100" Height="14" Foreground="{StaticResource AccentLightBrush}" Background="#EEE" BorderThickness="0" />
+                                        <TextBlock Text="{Binding Cpu, StringFormat={}{0:0}%}" HorizontalAlignment="Center" FontSize="11" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="{Binding [Col.Mem], Source={x:Static core:Loc.I}}" Width="110" SortMemberPath="MemoryPercent">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <ProgressBar Value="{Binding MemoryPercent, Mode=OneWay}" Maximum="100" Height="14" Foreground="{StaticResource OkBrush}" Background="#EEE" BorderThickness="0" />
+                                        <TextBlock Text="{Binding MemoryPercent, StringFormat={}{0:0}%}" HorizontalAlignment="Center" FontSize="11" />
+                                    </Grid>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="{Binding [Col.MemDetail], Source={x:Static core:Loc.I}}" Binding="{Binding MemoryText}" Width="120" />
+                        <DataGridTextColumn Header="{Binding [Col.Disk], Source={x:Static core:Loc.I}}" Binding="{Binding DiskText}" Width="120" SortMemberPath="DiskFreePercent" />
+                        <DataGridTextColumn Header="{Binding [Col.Uptime], Source={x:Static core:Loc.I}}" Binding="{Binding BootTime, StringFormat=dd/MM/yyyy HH:mm}" Width="120" />
+                        <DataGridTextColumn Header="{Binding [Col.Os], Source={x:Static core:Loc.I}}" Binding="{Binding Os}" Width="220" />
+                        <DataGridTextColumn Header="{Binding [Col.Source], Source={x:Static core:Loc.I}}" Binding="{Binding Source}" Width="70" />
+                        <DataGridTextColumn Header="{Binding [Col.Error], Source={x:Static core:Loc.I}}" Binding="{Binding Status}" Width="*" MinWidth="150" />
+                    </DataGrid.Columns>
+                    <DataGrid.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="{Binding [Menu.ServerProcesses], Source={x:Static core:Loc.I}}" Click="ServerProcesses_Click" FontWeight="SemiBold" />
+                            <MenuItem Header="{Binding [Menu.EventHistory], Source={x:Static core:Loc.I}}" Click="ServerHistory_Click" />
+                            <MenuItem Header="{Binding [Menu.ServerMessage], Source={x:Static core:Loc.I}}" Click="ServerMessage_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.DrainOn], Source={x:Static core:Loc.I}}" Click="DrainOn_Click" />
+                            <MenuItem Header="{Binding [Menu.DrainOff], Source={x:Static core:Loc.I}}" Click="DrainOff_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.ServerDisconnectAll], Source={x:Static core:Loc.I}}" Click="ServerDisconnectAll_Click" />
+                            <MenuItem Header="{Binding [Menu.ServerLogoffAll], Source={x:Static core:Loc.I}}" Click="ServerLogoffAll_Click" />
+                            <MenuItem Header="{Binding [Menu.Reboot], Source={x:Static core:Loc.I}}" Click="Reboot_Click" />
+                            <MenuItem Header="{Binding [Menu.Shutdown], Source={x:Static core:Loc.I}}" Click="Shutdown_Click" />
+                            <Separator />
+                            <MenuItem Header="{Binding [Menu.RdpAdmin], Source={x:Static core:Loc.I}}" Click="RdpAdmin_Click" />
+                            <MenuItem Header="{Binding [Menu.OpenCShare], Source={x:Static core:Loc.I}}" Click="OpenCShare_Click" />
+                            <MenuItem Header="{Binding [Menu.CompMgmt], Source={x:Static core:Loc.I}}" Click="CompMgmt_Click" />
+                            <MenuItem Header="{Binding [Menu.Services], Source={x:Static core:Loc.I}}" Click="ServicesMmc_Click" />
+                        </ContextMenu>
+                    </DataGrid.ContextMenu>
+                </DataGrid>
+            </TabItem>
+
+            <TabItem Header="{Binding [Tab.Profiles], Source={x:Static core:Loc.I}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Text="{Binding [Profiles.Hint], Source={x:Static core:Loc.I}}" />
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <Button x:Name="BtnScanProfiles" Style="{StaticResource PrimaryButton}" Click="ScanProfiles_Click" Content="{Binding [Btn.Refresh], Source={x:Static core:Loc.I}}" />
+                        <TextBox x:Name="TxtProfileFilter" Width="300" TextChanged="ProfileFilter_Changed" ToolTip="{Binding [Profiles.Filter], Source={x:Static core:Loc.I}}" />
+                        <TextBlock x:Name="TxtProfileStatus" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#555" />
+                    </StackPanel>
+                    <DataGrid x:Name="GridProfiles">
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Mounted}" Value="True">
+                                        <Setter Property="FontWeight" Value="SemiBold" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="{Binding [Col.Kind], Source={x:Static core:Loc.I}}" Binding="{Binding Kind}" Width="95" />
+                            <DataGridTextColumn Header="{Binding [Col.User], Source={x:Static core:Loc.I}}" Binding="{Binding User}" Width="180" />
+                            <DataGridTextColumn Header="{Binding [Col.Size], Source={x:Static core:Loc.I}}" Binding="{Binding SizeText}" Width="90" SortMemberPath="SizeBytes" />
+                            <DataGridTextColumn Header="{Binding [Col.Mounted], Source={x:Static core:Loc.I}}" Binding="{Binding MountedText}" Width="60" SortMemberPath="Mounted" />
+                            <DataGridTextColumn Header="{Binding [Col.Modified], Source={x:Static core:Loc.I}}" Binding="{Binding Modified, StringFormat=dd/MM/yyyy HH:mm}" Width="120" />
+                            <DataGridTextColumn Header="{Binding [Col.File], Source={x:Static core:Loc.I}}" Binding="{Binding FileName}" Width="260" />
+                            <DataGridTextColumn Header="{Binding [Col.Sid], Source={x:Static core:Loc.I}}" Binding="{Binding Sid}" Width="260" />
+                            <DataGridTextColumn Header="{Binding [Col.Share], Source={x:Static core:Loc.I}}" Binding="{Binding Share}" Width="*" />
+                        </DataGrid.Columns>
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="{Binding [Menu.Explore], Source={x:Static core:Loc.I}}" Click="ProfileExplore_Click" />
+                                <MenuItem Header="{Binding [Menu.CopyPath], Source={x:Static core:Loc.I}}" Click="ProfileCopyPath_Click" />
+                                <MenuItem Header="{Binding [Menu.AdInfo], Source={x:Static core:Loc.I}}" Click="ProfileAd_Click" />
+                                <MenuItem Header="{Binding [Menu.ProfileHistory], Source={x:Static core:Loc.I}}" Click="ProfileHistory_Click" />
+                                <Separator />
+                                <MenuItem Header="{Binding [Menu.DeleteProfile], Source={x:Static core:Loc.I}}" Click="ProfileDelete_Click" Foreground="{StaticResource ErrBrush}" />
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="{Binding [Tab.History], Source={x:Static core:Loc.I}}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Text="{Binding [History.Hint], Source={x:Static core:Loc.I}}" />
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="{Binding [History.User], Source={x:Static core:Loc.I}}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox x:Name="TxtHistoryUser" Width="180" Margin="0,0,12,0" KeyDown="HistoryUser_KeyDown" />
+                        <TextBlock Text="{Binding [History.Server], Source={x:Static core:Loc.I}}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <ComboBox x:Name="CmbHistoryServer" Width="200" Margin="0,0,12,0" IsEditable="True" />
+                        <TextBlock Text="{Binding [Config.HistoryDays], Source={x:Static core:Loc.I}}" VerticalAlignment="Center" Margin="0,0,6,0" />
+                        <TextBox x:Name="TxtHistoryDays" Width="50" Margin="0,0,12,0" />
+                        <Button x:Name="BtnHistory" Style="{StaticResource PrimaryButton}" Click="ReadHistory_Click" Content="{Binding [Btn.Search], Source={x:Static core:Loc.I}}" />
+                        <TextBlock x:Name="TxtHistoryStatus" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#555" />
+                    </StackPanel>
+                    <DataGrid x:Name="GridHistory">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="{Binding [Col.Time], Source={x:Static core:Loc.I}}" Binding="{Binding Time, StringFormat=dd/MM/yyyy HH:mm:ss}" Width="140" />
+                            <DataGridTextColumn Header="{Binding [Col.Server], Source={x:Static core:Loc.I}}" Binding="{Binding Server}" Width="170" />
+                            <DataGridTextColumn Header="{Binding [Col.Event], Source={x:Static core:Loc.I}}" Binding="{Binding Event}" Width="160" />
+                            <DataGridTextColumn Header="{Binding [Col.User], Source={x:Static core:Loc.I}}" Binding="{Binding User}" Width="200" />
+                            <DataGridTextColumn Header="{Binding [Col.SessionId], Source={x:Static core:Loc.I}}" Binding="{Binding SessionId}" Width="50" />
+                            <DataGridTextColumn Header="{Binding [Col.ClientIp], Source={x:Static core:Loc.I}}" Binding="{Binding ClientIp}" Width="140" />
+                            <DataGridTextColumn Header="ID" Binding="{Binding EventId}" Width="*" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </DockPanel>
+            </TabItem>
+
+            <TabItem Header="{Binding [Tab.Config], Source={x:Static core:Loc.I}}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="4,0,12,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="24" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding [Config.Section.Servers], Source={x:Static core:Loc.I}}" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.Brokers], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgBrokers" AcceptsReturn="True" Height="70" VerticalScrollBarVisibility="Auto" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.Servers], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgServers" AcceptsReturn="True" Height="110" VerticalScrollBarVisibility="Auto" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.Excluded], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgExcluded" AcceptsReturn="True" Height="50" VerticalScrollBarVisibility="Auto" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.Domains], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgDomains" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.Ldap], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgLdap" />
+
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding [Config.Section.Profiles], Source={x:Static core:Loc.I}}" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.Upd], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgUpd" AcceptsReturn="True" Height="60" VerticalScrollBarVisibility="Auto" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.FsLogix], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgFsLogix" AcceptsReturn="True" Height="60" VerticalScrollBarVisibility="Auto" />
+
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding [Config.Section.Columns], Source={x:Static core:Loc.I}}" />
+                            <TextBlock Style="{StaticResource Hint}" Text="{Binding [Config.Columns.Hint], Source={x:Static core:Loc.I}}" />
+                            <WrapPanel x:Name="CfgColumnsPanel" Margin="0,4,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding [Config.Section.Behavior], Source={x:Static core:Loc.I}}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="90" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="{Binding [Config.Refresh], Source={x:Static core:Loc.I}}" />
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="CfgRefresh" Margin="0,4" />
+                                <TextBlock Grid.Row="1" Style="{StaticResource Label}" Text="{Binding [Config.Timeout], Source={x:Static core:Loc.I}}" />
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="CfgTimeout" Margin="0,4" />
+                                <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="{Binding [Config.HistoryDays], Source={x:Static core:Loc.I}}" />
+                                <TextBox Grid.Row="2" Grid.Column="1" x:Name="CfgHistoryDays" Margin="0,4" />
+                                <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="{Binding [Config.Language], Source={x:Static core:Loc.I}}" />
+                                <ComboBox Grid.Row="3" Grid.Column="1" x:Name="CfgLanguage" Margin="0,4" SelectedValuePath="Tag">
+                                    <ComboBoxItem Content="Français" Tag="fr" />
+                                    <ComboBoxItem Content="English" Tag="en" />
+                                </ComboBox>
+                            </Grid>
+                            <CheckBox x:Name="CfgAutoRefresh" Content="{Binding [Config.AutoRefresh], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgConfirm" Content="{Binding [Config.Confirm], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgSystem" Content="{Binding [Config.System], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgPerf" Content="{Binding [Config.Perf], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgShadowControl" Content="{Binding [Config.ShadowControl], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgShadowConsent" Content="{Binding [Config.ShadowConsent], Source={x:Static core:Loc.I}}" />
+
+                            <TextBlock Style="{StaticResource SectionTitle}" Text="{Binding [Config.Section.Account], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgAltEnabled" Content="{Binding [Config.AltEnabled], Source={x:Static core:Loc.I}}" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.AltUser], Source={x:Static core:Loc.I}}" />
+                            <TextBox x:Name="CfgAltUser" IsEnabled="{Binding IsChecked, ElementName=CfgAltEnabled}" />
+                            <TextBlock Style="{StaticResource Label}" Text="{Binding [Config.AltPassword], Source={x:Static core:Loc.I}}" />
+                            <PasswordBox x:Name="CfgAltPassword" IsEnabled="{Binding IsChecked, ElementName=CfgAltEnabled}" />
+                            <CheckBox x:Name="CfgAltSavePwd" IsEnabled="{Binding IsChecked, ElementName=CfgAltEnabled}" Content="{Binding [Config.AltSavePwd], Source={x:Static core:Loc.I}}" />
+                            <CheckBox x:Name="CfgAltNetOnly" IsEnabled="{Binding IsChecked, ElementName=CfgAltEnabled}" Content="{Binding [Config.AltNetOnly], Source={x:Static core:Loc.I}}" />
+                            <TextBlock Style="{StaticResource Hint}" TextWrapping="Wrap" Text="{Binding [Config.AltHint], Source={x:Static core:Loc.I}}" />
+
+                            <WrapPanel Margin="0,18,0,0">
+                                <Button Style="{StaticResource PrimaryButton}" Click="SaveConfig_Click" Content="{Binding [Btn.Save], Source={x:Static core:Loc.I}}" />
+                                <Button Click="ExportConfig_Click" Content="{Binding [Btn.ExportConfig], Source={x:Static core:Loc.I}}" />
+                                <Button Click="ImportConfig_Click" Content="{Binding [Btn.Import], Source={x:Static core:Loc.I}}" />
+                                <Button Click="RunAs_Click" Content="{Binding [Btn.RunAs], Source={x:Static core:Loc.I}}" />
+                                <Button Click="OpenLog_Click" Content="{Binding [Btn.OpenLog], Source={x:Static core:Loc.I}}" />
+                                <Button Click="OpenDataDir_Click" Content="{Binding [Btn.OpenDataDir], Source={x:Static core:Loc.I}}" />
+                            </WrapPanel>
+                            <TextBlock x:Name="TxtConfigFile" Style="{StaticResource Hint}" Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <TabItem Header="{Binding [Tab.About], Source={x:Static core:Loc.I}}">
+                <DockPanel Margin="16">
+                    <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Left">
+                        <TextBlock Foreground="#666">
+                            <Run Text="{Binding [About.Author], Source={x:Static core:Loc.I}, Mode=OneWay}" /><Run Text=" - " /><Hyperlink NavigateUri="https://maxokie.win/" RequestNavigate="Link_RequestNavigate">https://maxokie.win/</Hyperlink>
+                        </TextBlock>
+                        <TextBlock Margin="0,4,0,0" Foreground="#666">
+                            <Run Text="GitHub repo: " /><Hyperlink NavigateUri="https://github.com/Maxokie/Dahu" RequestNavigate="Link_RequestNavigate">https://github.com/Maxokie/Dahu</Hyperlink>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel MaxWidth="760" HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="/Assets/dahu.ico" Width="64" Height="64" Margin="0,0,16,0" />
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Dahu" FontSize="28" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                                <TextBlock x:Name="TxtVersion" Foreground="#666" />
+                            </StackPanel>
+                        </StackPanel>
+                        <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" LineHeight="20" Text="{Binding [About.Text], Source={x:Static core:Loc.I}}" />
+                        <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="#666" x:Name="TxtIdentity" />
+                    </StackPanel>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+
+        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushLight}" BorderThickness="0,1,0,0" Padding="10,4">
+            <DockPanel>
+                <TextBlock x:Name="TxtErrors" DockPanel.Dock="Right" Foreground="{StaticResource ErrBrush}" Margin="12,0,0,0" Cursor="Hand" MouseLeftButtonUp="Errors_Click" />
+                <TextBlock x:Name="TxtUser" DockPanel.Dock="Right" Foreground="#666" Margin="12,0,0,0" />
+                <TextBlock x:Name="TxtStatus" Foreground="#333" />
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>
