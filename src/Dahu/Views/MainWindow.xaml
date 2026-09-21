@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:core="clr-namespace:Dahu.Core"
         xmlns:m="clr-namespace:Dahu.Models"
-        Title="{Binding [App.Title], Source={x:Static core:Loc.I}}"
+        Title="Dahu"
         Icon="/Assets/dahu.ico"
         MinWidth="900" MinHeight="560"
         FontFamily="Segoe UI" FontSize="12.5"
