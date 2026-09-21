@@ -55,6 +55,8 @@ public sealed class AppConfig
 
     public string LdapPath { get; set; } = "";
 
+    public string IgnoredUpdateVersion { get; set; } = "";
+
     public Dictionary<string, List<ColumnLayout>> ColumnLayouts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public double WindowWidth { get; set; } = 1280;

@@ -160,7 +160,7 @@ public static class WmiService
         inParams["CommandLine"] = commandLine;
         using var outParams = cls.InvokeMethod("Create", inParams, null);
         var rv = Convert.ToInt32(outParams["ReturnValue"]);
-        if (rv != 0) throw new InvalidOperationException($"Win32_Process.Create a retourné {rv}");
+        if (rv != 0) throw new InvalidOperationException(string.Format(Loc.T("Err.ProcessCreate"), rv));
         return Convert.ToInt32(outParams["ProcessId"]);
     }
 
@@ -208,7 +208,7 @@ public static class WmiService
             p.InvokeMethod("Terminate", new object[] { 1 });
             return;
         }
-        throw new InvalidOperationException($"Processus {pid} introuvable (déjà terminé ?)");
+        throw new InvalidOperationException(string.Format(Loc.T("Err.ProcessNotFound"), pid));
     }
 
     public static void Shutdown(string server, bool reboot, TimeSpan timeout)
@@ -221,7 +221,7 @@ public static class WmiService
             inp["Reserved"] = 0;
             using var r = os.InvokeMethod("Win32Shutdown", inp, null);
             var rv = Convert.ToInt32(r?["ReturnValue"] ?? 0);
-            if (rv != 0) throw new InvalidOperationException($"Win32Shutdown a retourné {rv}");
+            if (rv != 0) throw new InvalidOperationException(string.Format(Loc.T("Err.Shutdown"), rv));
             return;
         }
     }

@@ -58,10 +58,10 @@ public static class HistoryService
                     EventId = rec.Id,
                     Event = rec.Id switch
                     {
-                        21 => Loc.I.Language == "en" ? "Logon" : "Ouverture de session",
-                        23 => Loc.I.Language == "en" ? "Logoff" : "Fermeture de session",
-                        24 => Loc.I.Language == "en" ? "Disconnected" : "Déconnexion",
-                        25 => Loc.I.Language == "en" ? "Reconnected" : "Reconnexion",
+                        21 => Loc.T("Event.Logon"),
+                        23 => Loc.T("Event.Logoff"),
+                        24 => Loc.T("Event.Disconnected"),
+                        25 => Loc.T("Event.Reconnected"),
                         _ => rec.Id.ToString(),
                     },
                     User = user,

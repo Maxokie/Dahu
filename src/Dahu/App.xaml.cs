@@ -20,10 +20,10 @@ public partial class App : Application
         ThreadPool.SetMinThreads(Math.Max(minWorker, 64), Math.Max(minIo, 64));
 
         Loc.I.Language = cfg.Language;
-        var culture = Loc.I.Language == "en" ? CultureInfo.GetCultureInfo("en-US") : CultureInfo.GetCultureInfo("fr-FR");
+        var culture = Loc.Culture(Loc.I.Language);
         Thread.CurrentThread.CurrentUICulture = culture;
 
-        Log.Info($"=== Démarrage Dahu {typeof(App).Assembly.GetName().Version?.ToString(3)} - {Environment.UserDomainName}\\{Environment.UserName} sur {Environment.MachineName} - portable={AppPaths.IsPortable}"
+        Log.Info($"=== Démarrage Dahu {typeof(App).Assembly.GetName().Version?.ToString(2)} - {Environment.UserDomainName}\\{Environment.UserName} sur {Environment.MachineName} - portable={AppPaths.IsPortable}"
                  + (Services.AltAccount.ActiveUser != null ? $" - compte réseau {Services.AltAccount.ActiveUser}" : ""));
 
         var app = new App();
@@ -39,7 +39,7 @@ public partial class App : Application
 
         if (!AcquireInstanceMutex())
         {
-            MessageBox.Show("Dahu est déjà en cours d'exécution.", "Dahu", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(Loc.T("App.AlreadyRunning"), "Dahu", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -87,7 +87,7 @@ public partial class App : Application
         Log.Error("Exception non gérée (UI)", e.Exception);
         try
         {
-            MessageBox.Show($"Une erreur inattendue s'est produite. L'application continue.\n\n{e.Exception.Message}\n\nDétails dans {Log.Path}",
+            MessageBox.Show(string.Format(Loc.T("App.UnexpectedError"), e.Exception.Message, Log.Path),
                 "Dahu", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         catch { }

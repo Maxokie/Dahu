@@ -33,7 +33,11 @@
                     </StackPanel>
                 </Button>
                 <ToggleButton x:Name="BtnPause" DockPanel.Dock="Left" Margin="0,0,6,0" Padding="10,4" Content="{Binding [Btn.Pause], Source={x:Static core:Loc.I}}" Checked="Pause_Changed" Unchecked="Pause_Changed" />
-                <CheckBox x:Name="ChkActiveOnly" DockPanel.Dock="Left" Margin="10,0,10,0" VerticalAlignment="Center" Content="{Binding [Filter.ActiveOnly], Source={x:Static core:Loc.I}}" Checked="Filter_Changed" Unchecked="Filter_Changed" />
+                <ComboBox x:Name="CmbStateFilter" DockPanel.Dock="Left" Margin="10,0,10,0" MinWidth="150" VerticalAlignment="Center" SelectedIndex="0" SelectionChanged="StateFilter_Changed">
+                    <ComboBoxItem Content="{Binding [Filter.All], Source={x:Static core:Loc.I}}" />
+                    <ComboBoxItem Content="{Binding [Filter.ActiveOnly], Source={x:Static core:Loc.I}}" />
+                    <ComboBoxItem Content="{Binding [Filter.DisconnectedOnly], Source={x:Static core:Loc.I}}" />
+                </ComboBox>
                 <Grid>
                     <TextBox x:Name="TxtFilter" TextChanged="Filter_Changed" MaxWidth="600" HorizontalAlignment="Left" MinWidth="360" />
                     <TextBlock x:Name="TxtFilterHint" Text="{Binding [Filter.Placeholder], Source={x:Static core:Loc.I}}" Foreground="#999" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" HorizontalAlignment="Left" />
@@ -293,10 +297,8 @@
                                 <TextBlock Grid.Row="2" Style="{StaticResource Label}" Text="{Binding [Config.HistoryDays], Source={x:Static core:Loc.I}}" />
                                 <TextBox Grid.Row="2" Grid.Column="1" x:Name="CfgHistoryDays" Margin="0,4" />
                                 <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="{Binding [Config.Language], Source={x:Static core:Loc.I}}" />
-                                <ComboBox Grid.Row="3" Grid.Column="1" x:Name="CfgLanguage" Margin="0,4" SelectedValuePath="Tag">
-                                    <ComboBoxItem Content="Français" Tag="fr" />
-                                    <ComboBoxItem Content="English" Tag="en" />
-                                </ComboBox>
+                                <ComboBox Grid.Row="3" Grid.Column="1" x:Name="CfgLanguage" Margin="0,4" SelectedValuePath="Code" DisplayMemberPath="Name"
+                                          ItemsSource="{x:Static core:Loc.Languages}" />
                             </Grid>
                             <CheckBox x:Name="CfgAutoRefresh" Content="{Binding [Config.AutoRefresh], Source={x:Static core:Loc.I}}" />
                             <CheckBox x:Name="CfgConfirm" Content="{Binding [Config.Confirm], Source={x:Static core:Loc.I}}" />

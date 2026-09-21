@@ -1,10 +1,32 @@
 using System.ComponentModel;
+using System.Globalization;
+using System.IO;
+using System.Reflection;
+using System.Text.Json;
 
 namespace Dahu.Core;
 
+public sealed record LangInfo(string Code, string Name);
+
 public sealed class Loc : INotifyPropertyChanged
 {
-    public static readonly string[] Supported = { "fr", "en" };
+    public const string Fallback = "en";
+    public const string FolderName = "lang";
+    private const string ResourcePrefix = "Dahu.Lang.";
+    private const string NameKey = "Lang.Name";
+
+    private static readonly JsonSerializerOptions JsonOpts = new()
+    {
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+    };
+
+    private static readonly Dictionary<string, Dictionary<string, string>> Tables = LoadTables();
+
+    public static IReadOnlyList<LangInfo> Languages { get; } = Tables
+        .Select(t => new LangInfo(t.Key, t.Value.TryGetValue(NameKey, out var n) && n.Length > 0 ? n : t.Key))
+        .OrderBy(l => l.Name, StringComparer.CurrentCultureIgnoreCase)
+        .ToList();
 
     public static Loc I { get; } = new();
 
@@ -14,18 +36,23 @@ public sealed class Loc : INotifyPropertyChanged
     {
         get
         {
-            var sys = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-            return Normalize(sys, "en");
+            var ui = CultureInfo.CurrentUICulture;
+            var full = Normalize(ui.Name, "");
+            return full.Length > 0 ? full : Normalize(ui.TwoLetterISOLanguageName);
         }
     }
 
-    public static string Normalize(string? lang, string fallback = "en")
+    public static string Normalize(string? lang, string fallback = Fallback)
     {
         if (string.IsNullOrWhiteSpace(lang)) return fallback;
         lang = lang.Trim().ToLowerInvariant();
-        foreach (var l in Supported)
-            if (l == lang) return l;
-        return fallback;
+        return Tables.ContainsKey(lang) ? lang : fallback;
+    }
+
+    public static CultureInfo Culture(string lang)
+    {
+        try { return CultureInfo.CreateSpecificCulture(lang); }
+        catch { return CultureInfo.GetCultureInfo("en-US"); }
     }
 
     private string _lang = SystemDefault;
@@ -43,414 +70,52 @@ public sealed class Loc : INotifyPropertyChanged
     {
         get
         {
-            var table = _lang == "en" ? En : Fr;
-            return table.TryGetValue(key, out var v) ? v : (Fr.TryGetValue(key, out var f) ? f : key);
+            if (Tables.TryGetValue(_lang, out var table) && table.TryGetValue(key, out var v)) return v;
+            return Tables.TryGetValue(Fallback, out var fb) && fb.TryGetValue(key, out var f) ? f : key;
         }
     }
 
     public static string T(string key) => I[key];
 
-    private static readonly Dictionary<string, string> Fr = new()
+    private static Dictionary<string, Dictionary<string, string>> LoadTables()
     {
-        ["App.Title"] = "Dahu",
-        ["Tab.Sessions"] = "Sessions",
-        ["Tab.Servers"] = "Serveurs",
-        ["Tab.Profiles"] = "Profils",
-        ["Tab.History"] = "Historique",
-        ["Tab.Config"] = "Configuration",
-        ["Tab.About"] = "À propos",
-        ["Btn.Refresh"] = "Actualiser",
-        ["Btn.Save"] = "Enregistrer",
-        ["Btn.Cancel"] = "Annuler",
-        ["Btn.OK"] = "OK",
-        ["Btn.Send"] = "Envoyer",
-        ["Btn.Close"] = "Fermer",
-        ["Btn.Kill"] = "Terminer le processus",
-        ["Btn.Pause"] = "Pause auto-actualisation",
-        ["Btn.Search"] = "Rechercher",
-        ["Btn.Import"] = "Importer",
-        ["Btn.ExportConfig"] = "Exporter la config",
-        ["Btn.OpenLog"] = "Ouvrir le journal",
-        ["Btn.OpenDataDir"] = "Ouvrir le dossier de données",
-        ["Btn.RunAs"] = "Relancer avec ce compte maintenant",
-        ["Filter.Placeholder"] = "Filtrer (utilisateur, serveur, poste, IP, collection...)",
-        ["Filter.ActiveOnly"] = "Actives seulement",
-        ["Status.Ready"] = "Prêt",
-        ["Status.Refreshing"] = "Actualisation en cours...",
-        ["Status.Sessions"] = "{0} session(s) sur {1} serveur(s), {2} en erreur - {3}",
-        ["Status.NoServers"] = "Aucun serveur configuré : renseignez un Broker ou des hôtes dans l'onglet Configuration.",
-        ["Col.Server"] = "Serveur",
-        ["Col.SessionId"] = "ID",
-        ["Col.User"] = "Utilisateur",
-        ["Col.Domain"] = "Domaine",
-        ["Col.State"] = "État",
-        ["Col.Client"] = "Poste client",
-        ["Col.ClientIp"] = "IP client",
-        ["Col.Collection"] = "Collection",
-        ["Col.Type"] = "Type",
-        ["Col.Logon"] = "Ouverture",
-        ["Col.Connect"] = "Connexion",
-        ["Col.Disconnect"] = "Déconnexion",
-        ["Col.Idle"] = "Inactivité",
-        ["Col.Resolution"] = "Résolution",
-        ["Col.Station"] = "Station",
-        ["Col.Protocol"] = "Protocole",
-        ["Col.ClientBuild"] = "Client RDP",
-        ["Col.Os"] = "Système",
-        ["Col.Sessions"] = "Sessions",
-        ["Col.Active"] = "Actives",
-        ["Col.Disconnected"] = "Déconnectées",
-        ["Col.Cpu"] = "CPU %",
-        ["Col.Mem"] = "Mémoire %",
-        ["Col.MemDetail"] = "Mémoire",
-        ["Col.Disk"] = "Disque C: libre",
-        ["Col.Uptime"] = "Démarré le",
-        ["Col.Mode"] = "Mode",
-        ["Col.Error"] = "Erreur / Info",
-        ["Col.Pid"] = "PID",
-        ["Col.Process"] = "Processus",
-        ["Col.WorkingSet"] = "Mémoire (Mo)",
-        ["Col.CpuTime"] = "Temps CPU",
-        ["Col.Started"] = "Démarré",
-        ["Col.Path"] = "Chemin",
-        ["Col.File"] = "Fichier",
-        ["Col.Size"] = "Taille",
-        ["Col.Modified"] = "Modifié le",
-        ["Col.Sid"] = "SID",
-        ["Col.Share"] = "Partage",
-        ["Col.Mounted"] = "Monté",
-        ["Col.Kind"] = "Type",
-        ["Col.Time"] = "Date/heure",
-        ["Col.Event"] = "Événement",
-        ["Col.Source"] = "Source",
-        ["Menu.Disconnect"] = "Déconnecter",
-        ["Menu.Logoff"] = "Fermer la session (logoff)",
-        ["Menu.Message"] = "Envoyer un message...",
-        ["Menu.Shadow"] = "Prendre le contrôle (shadow)",
-        ["Menu.ShadowView"] = "Observer (shadow sans contrôle)",
-        ["Menu.Processes"] = "Processus de la session...",
-        ["Menu.Details"] = "Détails de la session...",
-        ["Menu.AdInfo"] = "Compte Active Directory...",
-        ["Menu.Profile"] = "Ouvrir le dossier de profil",
-        ["Menu.CopyUser"] = "Copier le nom d'utilisateur",
-        ["Menu.CopyIp"] = "Copier l'IP du poste client",
-        ["Menu.PingClient"] = "Ping du poste client",
-        ["Menu.RdpClient"] = "Bureau à distance vers le poste client",
-        ["Menu.ServerMessage"] = "Message à tous les utilisateurs...",
-        ["Menu.ServerProcesses"] = "Processus du serveur...",
-        ["Menu.ServerLogoffAll"] = "Fermer toutes les sessions",
-        ["Menu.ServerDisconnectAll"] = "Déconnecter toutes les sessions",
-        ["Menu.DrainOn"] = "Mode maintenance (refuser nouvelles connexions)",
-        ["Menu.DrainOff"] = "Mode production (accepter les connexions)",
-        ["Menu.Reboot"] = "Redémarrer le serveur...",
-        ["Menu.Shutdown"] = "Arrêter le serveur...",
-        ["Menu.RdpAdmin"] = "Bureau à distance (mstsc /admin)",
-        ["Menu.OpenCShare"] = "Ouvrir \\\\serveur\\C$",
-        ["Menu.EventHistory"] = "Historique des connexions du serveur",
-        ["Menu.CompMgmt"] = "Gestion de l'ordinateur",
-        ["Menu.Services"] = "Services",
-        ["Menu.Explore"] = "Ouvrir dans l'explorateur",
-        ["Menu.CopyPath"] = "Copier le chemin",
-        ["Menu.DeleteProfile"] = "Supprimer le profil (irréversible)...",
-        ["Menu.ProfileHistory"] = "Historique des connexions de l'utilisateur",
-        ["Msg.Title"] = "Titre",
-        ["Msg.Body"] = "Message",
-        ["Msg.DefaultTitle"] = "Message de l'administrateur",
-        ["Msg.SendTo"] = "Envoyer à {0} session(s)",
-        ["Confirm.Title"] = "Confirmation",
-        ["Confirm.Disconnect"] = "Déconnecter {0} session(s) ?",
-        ["Confirm.Logoff"] = "Fermer {0} session(s) ? Les travaux non enregistrés seront perdus.",
-        ["Confirm.Kill"] = "Terminer le processus {0} (PID {1}) ?",
-        ["Confirm.Reboot"] = "Redémarrer le serveur {0} ? Toutes les sessions seront fermées.",
-        ["Confirm.Shutdown"] = "Arrêter le serveur {0} ? Toutes les sessions seront fermées.",
-        ["Confirm.LogoffAll"] = "Fermer TOUTES les sessions du serveur {0} ?",
-        ["Confirm.DisconnectAll"] = "Déconnecter toutes les sessions du serveur {0} ?",
-        ["Confirm.DeleteProfile"] = "Supprimer définitivement le profil {0} ?\n\nCette action est irréversible.",
-        ["Confirm.AdDisable"] = "Désactiver le compte {0} ?",
-        ["Confirm.AdEnable"] = "Réactiver le compte {0} ?",
-        ["Confirm.AdUnlock"] = "Déverrouiller le compte {0} ?",
-        ["Confirm.AdPwdChange"] = "Forcer {0} à changer son mot de passe à la prochaine ouverture de session ?",
-        ["Result.Done"] = "Terminé : {0} réussite(s), {1} échec(s).",
-        ["Result.Error"] = "Erreur",
-        ["Config.Brokers"] = "Serveurs Broker (un par ligne, FQDN recommandé)",
-        ["Config.Servers"] = "Hôtes de session déclarés manuellement (un par ligne)",
-        ["Config.Excluded"] = "Serveurs exclus",
-        ["Config.Domains"] = "Filtrer les sessions par domaine (vide = tous)",
-        ["Config.Upd"] = "Partages UPD (\\\\serveur\\partage)",
-        ["Config.FsLogix"] = "Partages FSLogix",
-        ["Config.Refresh"] = "Actualisation automatique (secondes)",
-        ["Config.AutoRefresh"] = "Actualisation automatique activée",
-        ["Config.Timeout"] = "Délai maximum par serveur (secondes)",
-        ["Config.System"] = "Afficher les sessions système (services, console vide)",
-        ["Config.Perf"] = "Collecter CPU / mémoire / disque des serveurs (WMI)",
-        ["Config.ShadowConsent"] = "Shadow : demander le consentement de l'utilisateur",
-        ["Config.ShadowControl"] = "Shadow : prendre le contrôle (sinon observation seule)",
-        ["Config.Language"] = "Langue",
-        ["Config.AltEnabled"] = "Utiliser un autre compte Active Directory (Dahu se relance sous ce compte au démarrage)",
-        ["Config.AltUser"] = "Compte (DOMAINE\\utilisateur ou utilisateur@domaine)",
-        ["Config.AltPassword"] = "Mot de passe",
-        ["Config.AltSavePwd"] = "Mémoriser le mot de passe (chiffré pour ce compte Windows et ce poste uniquement)",
-        ["Config.AltNetOnly"] = "Identifiants réseau uniquement (/netonly, conseillé : fonctionne aussi hors domaine)",
-        ["Config.AltHint"] = "Sans mot de passe mémorisé, il est demandé à chaque lancement. Le compte doit être administrateur des serveurs RDS.",
-        ["Alt.PromptTitle"] = "Compte Active Directory",
-        ["Alt.PromptText"] = "Mot de passe de {0} :",
-        ["Alt.Failed"] = "Impossible de relancer Dahu sous {0} :\n{1}",
-        ["Alt.Status"] = " - compte réseau : {0}",
-        ["Alt.Testing"] = "Vérification du compte {0}...",
-        ["Alt.TestCredOk"] = "Identifiants : validés par le domaine.",
-        ["Alt.TestCredFail"] = "Identifiants : REFUSÉS ({0}).",
-        ["Alt.TestCredSkip"] = "Identifiants : non vérifiables depuis ce poste ({0}), test par accès serveur.",
-        ["Alt.TestAccessOk"] = "Accès à {0} : OK ({1} session(s) lues).",
-        ["Alt.TestAccessFail"] = "Accès à {0} : ÉCHEC - {1}",
-        ["Alt.TestNoServer"] = "Aucun serveur ni broker configuré : accès aux serveurs non testé.",
-        ["Alt.TestOkMsg"] = "Compte {0} vérifié.\n\n{1}",
-        ["Alt.SaveAnyway"] = "Le compte {0} ne semble pas avoir les accès requis :\n\n{1}\n\nEnregistrer quand même ?",
-        ["Config.Confirm"] = "Demander confirmation avant chaque action",
-        ["Config.HistoryDays"] = "Historique : nombre de jours à lire",
-        ["Config.Ldap"] = "Chemin LDAP (vide = domaine courant)",
-        ["Config.Saved"] = "Configuration enregistrée.",
-        ["Config.File"] = "Fichier de configuration : {0}",
-        ["Config.Section.Servers"] = "Serveurs",
-        ["Config.Section.Profiles"] = "Profils utilisateurs",
-        ["Config.Section.Behavior"] = "Comportement",
-        ["Config.Section.Account"] = "Compte Active Directory",
-        ["Config.Section.Columns"] = "Colonnes visibles dans l'onglet Sessions",
-        ["Config.Columns.Hint"] = "Décochez les colonnes à masquer. Prise en compte à l'enregistrement.",
-        ["Profiles.Hint"] = "Les partages UPD contiennent des fichiers UVHD-<SID>.vhdx ; les partages FSLogix des dossiers <utilisateur>_<SID>.",
-        ["Profiles.Filter"] = "Filtrer (utilisateur, SID, fichier)",
-        ["History.Hint"] = "Lecture du journal Microsoft-Windows-TerminalServices-LocalSessionManager/Operational (événements 21, 23, 24, 25) sur chaque serveur.",
-        ["History.User"] = "Utilisateur (vide = tous)",
-        ["History.Server"] = "Serveur (vide = tous)",
-        ["Detail.Title"] = "Détails de la session",
-        ["Proc.Title"] = "Processus",
-        ["Ad.Title"] = "Compte Active Directory",
-        ["Ad.NotFound"] = "Compte introuvable dans l'annuaire.",
-        ["Ad.Disable"] = "Désactiver le compte",
-        ["Ad.Enable"] = "Activer le compte",
-        ["Ad.Unlock"] = "Déverrouiller",
-        ["Ad.ForcePwd"] = "Changer le mot de passe à la prochaine ouverture",
-        ["State.Active"] = "Active",
-        ["State.Connected"] = "Connectée",
-        ["State.ConnectQuery"] = "Connexion",
-        ["State.Shadow"] = "Shadow",
-        ["State.Disconnected"] = "Déconnectée",
-        ["State.Idle"] = "Inactive",
-        ["State.Listen"] = "Écoute",
-        ["State.Reset"] = "Réinitialisation",
-        ["State.Down"] = "Arrêtée",
-        ["State.Init"] = "Initialisation",
-        ["Mode.Production"] = "Production",
-        ["Mode.Drain"] = "Maintenance (drain)",
-        ["Mode.DrainReboot"] = "Maintenance jusqu'au redémarrage",
-        ["Mode.LogonsDisabled"] = "Connexions désactivées",
-        ["Mode.Unknown"] = "?",
-        ["Type.Desktop"] = "Bureau",
-        ["Type.RemoteApp"] = "RemoteApp",
-        ["About.Text"] = "Dahu est un outil d'administration pour fermes RDS (Remote Desktop Services).\n\nIl permet de visualiser les sessions ouvertes sur les serveurs de la ferme et d'agir dessus (message, déconnexion, fermeture, processus), de surveiller l'état des serveurs, de gérer les profils UPD / FSLogix et de consulter l'historique des connexions.\n\nRéécriture portable de Galinette Cendrée (ydhem). Licence GPLv3.",
-        ["About.Author"] = "Créé par Maxokie",
-        ["Err.NoSelection"] = "Sélectionnez au moins une session.",
-        ["Err.NoServer"] = "Sélectionnez un serveur.",
-    };
+        var tables = new Dictionary<string, Dictionary<string, string>>(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Dictionary<string, string> En = new()
+        var asm = Assembly.GetExecutingAssembly();
+        foreach (var res in asm.GetManifestResourceNames())
+        {
+            if (!res.StartsWith(ResourcePrefix, StringComparison.OrdinalIgnoreCase) || !res.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+            var code = res[ResourcePrefix.Length..^".json".Length];
+            using var stream = asm.GetManifestResourceStream(res);
+            if (stream == null) continue;
+            using var reader = new StreamReader(stream);
+            Merge(tables, code, reader.ReadToEnd(), res);
+        }
+
+        foreach (var dir in new[] { Path.Combine(AppPaths.ExeDir, FolderName), Path.Combine(AppPaths.DataDir, FolderName) }.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            try
+            {
+                if (!Directory.Exists(dir)) continue;
+                foreach (var file in Directory.GetFiles(dir, "*.json"))
+                    Merge(tables, Path.GetFileNameWithoutExtension(file), File.ReadAllText(file), file);
+            }
+            catch (Exception ex) { Log.Error($"Lecture du dossier de langues {dir}", ex); }
+        }
+        return tables;
+    }
+
+    private static void Merge(Dictionary<string, Dictionary<string, string>> tables, string code, string json, string source)
     {
-        ["App.Title"] = "Dahu",
-        ["Tab.Sessions"] = "Sessions",
-        ["Tab.Servers"] = "Servers",
-        ["Tab.Profiles"] = "Profiles",
-        ["Tab.History"] = "History",
-        ["Tab.Config"] = "Settings",
-        ["Tab.About"] = "About",
-        ["Btn.Refresh"] = "Refresh",
-        ["Btn.Save"] = "Save",
-        ["Btn.Cancel"] = "Cancel",
-        ["Btn.OK"] = "OK",
-        ["Btn.Send"] = "Send",
-        ["Btn.Close"] = "Close",
-        ["Btn.Kill"] = "End process",
-        ["Btn.Pause"] = "Pause auto-refresh",
-        ["Btn.Search"] = "Search",
-        ["Btn.Import"] = "Import",
-        ["Btn.ExportConfig"] = "Export settings",
-        ["Btn.OpenLog"] = "Open log",
-        ["Btn.OpenDataDir"] = "Open data folder",
-        ["Btn.RunAs"] = "Restart with this account now",
-        ["Filter.Placeholder"] = "Filter (user, server, client, IP, collection...)",
-        ["Filter.ActiveOnly"] = "Active only",
-        ["Status.Ready"] = "Ready",
-        ["Status.Refreshing"] = "Refreshing...",
-        ["Status.Sessions"] = "{0} session(s) on {1} server(s), {2} failed - {3}",
-        ["Status.NoServers"] = "No server configured: enter a Broker or session hosts in the Settings tab.",
-        ["Col.Server"] = "Server",
-        ["Col.SessionId"] = "ID",
-        ["Col.User"] = "User",
-        ["Col.Domain"] = "Domain",
-        ["Col.State"] = "State",
-        ["Col.Client"] = "Client",
-        ["Col.ClientIp"] = "Client IP",
-        ["Col.Collection"] = "Collection",
-        ["Col.Type"] = "Type",
-        ["Col.Logon"] = "Logon",
-        ["Col.Connect"] = "Connect",
-        ["Col.Disconnect"] = "Disconnect",
-        ["Col.Idle"] = "Idle",
-        ["Col.Resolution"] = "Resolution",
-        ["Col.Station"] = "Station",
-        ["Col.Protocol"] = "Protocol",
-        ["Col.ClientBuild"] = "RDP client",
-        ["Col.Os"] = "OS",
-        ["Col.Sessions"] = "Sessions",
-        ["Col.Active"] = "Active",
-        ["Col.Disconnected"] = "Disconnected",
-        ["Col.Cpu"] = "CPU %",
-        ["Col.Mem"] = "Memory %",
-        ["Col.MemDetail"] = "Memory",
-        ["Col.Disk"] = "C: free",
-        ["Col.Uptime"] = "Boot time",
-        ["Col.Mode"] = "Mode",
-        ["Col.Error"] = "Error / Info",
-        ["Col.Pid"] = "PID",
-        ["Col.Process"] = "Process",
-        ["Col.WorkingSet"] = "Memory (MB)",
-        ["Col.CpuTime"] = "CPU time",
-        ["Col.Started"] = "Started",
-        ["Col.Path"] = "Path",
-        ["Col.File"] = "File",
-        ["Col.Size"] = "Size",
-        ["Col.Modified"] = "Modified",
-        ["Col.Sid"] = "SID",
-        ["Col.Share"] = "Share",
-        ["Col.Mounted"] = "Mounted",
-        ["Col.Kind"] = "Kind",
-        ["Col.Time"] = "Time",
-        ["Col.Event"] = "Event",
-        ["Col.Source"] = "Source",
-        ["Menu.Disconnect"] = "Disconnect",
-        ["Menu.Logoff"] = "Log off",
-        ["Menu.Message"] = "Send message...",
-        ["Menu.Shadow"] = "Take control (shadow)",
-        ["Menu.ShadowView"] = "View only (shadow)",
-        ["Menu.Processes"] = "Session processes...",
-        ["Menu.Details"] = "Session details...",
-        ["Menu.AdInfo"] = "Active Directory account...",
-        ["Menu.Profile"] = "Open profile folder",
-        ["Menu.CopyUser"] = "Copy user name",
-        ["Menu.CopyIp"] = "Copy client IP",
-        ["Menu.PingClient"] = "Ping client",
-        ["Menu.RdpClient"] = "Remote desktop to client",
-        ["Menu.ServerMessage"] = "Message all users...",
-        ["Menu.ServerProcesses"] = "Server processes...",
-        ["Menu.ServerLogoffAll"] = "Log off all sessions",
-        ["Menu.ServerDisconnectAll"] = "Disconnect all sessions",
-        ["Menu.DrainOn"] = "Maintenance mode (deny new connections)",
-        ["Menu.DrainOff"] = "Production mode (allow connections)",
-        ["Menu.Reboot"] = "Reboot server...",
-        ["Menu.Shutdown"] = "Shut down server...",
-        ["Menu.RdpAdmin"] = "Remote desktop (mstsc /admin)",
-        ["Menu.OpenCShare"] = "Open \\\\server\\C$",
-        ["Menu.EventHistory"] = "Server connection history",
-        ["Menu.CompMgmt"] = "Computer management",
-        ["Menu.Services"] = "Services",
-        ["Menu.Explore"] = "Open in Explorer",
-        ["Menu.CopyPath"] = "Copy path",
-        ["Menu.DeleteProfile"] = "Delete profile (irreversible)...",
-        ["Menu.ProfileHistory"] = "User connection history",
-        ["Msg.Title"] = "Title",
-        ["Msg.Body"] = "Message",
-        ["Msg.DefaultTitle"] = "Message from administrator",
-        ["Msg.SendTo"] = "Send to {0} session(s)",
-        ["Confirm.Title"] = "Confirm",
-        ["Confirm.Disconnect"] = "Disconnect {0} session(s)?",
-        ["Confirm.Logoff"] = "Log off {0} session(s)? Unsaved work will be lost.",
-        ["Confirm.Kill"] = "End process {0} (PID {1})?",
-        ["Confirm.Reboot"] = "Reboot server {0}? All sessions will be closed.",
-        ["Confirm.Shutdown"] = "Shut down server {0}? All sessions will be closed.",
-        ["Confirm.LogoffAll"] = "Log off ALL sessions on {0}?",
-        ["Confirm.DisconnectAll"] = "Disconnect all sessions on {0}?",
-        ["Confirm.DeleteProfile"] = "Permanently delete profile {0}?\n\nThis cannot be undone.",
-        ["Confirm.AdDisable"] = "Disable account {0}?",
-        ["Confirm.AdEnable"] = "Enable account {0}?",
-        ["Confirm.AdUnlock"] = "Unlock account {0}?",
-        ["Confirm.AdPwdChange"] = "Force {0} to change password at next logon?",
-        ["Result.Done"] = "Done: {0} succeeded, {1} failed.",
-        ["Result.Error"] = "Error",
-        ["Config.Brokers"] = "Connection Broker servers (one per line, FQDN recommended)",
-        ["Config.Servers"] = "Manually declared session hosts (one per line)",
-        ["Config.Excluded"] = "Excluded servers",
-        ["Config.Domains"] = "Filter sessions by domain (empty = all)",
-        ["Config.Upd"] = "UPD shares (\\\\server\\share)",
-        ["Config.FsLogix"] = "FSLogix shares",
-        ["Config.Refresh"] = "Auto-refresh (seconds)",
-        ["Config.AutoRefresh"] = "Auto-refresh enabled",
-        ["Config.Timeout"] = "Per-server timeout (seconds)",
-        ["Config.System"] = "Show system sessions (services, empty console)",
-        ["Config.Perf"] = "Collect server CPU / memory / disk (WMI)",
-        ["Config.ShadowConsent"] = "Shadow: ask for user consent",
-        ["Config.ShadowControl"] = "Shadow: take control (otherwise view only)",
-        ["Config.Language"] = "Language",
-        ["Config.AltEnabled"] = "Use another Active Directory account (Dahu restarts under this account at startup)",
-        ["Config.AltUser"] = "Account (DOMAIN\\user or user@domain)",
-        ["Config.AltPassword"] = "Password",
-        ["Config.AltSavePwd"] = "Remember the password (encrypted for this Windows account and this computer only)",
-        ["Config.AltNetOnly"] = "Network credentials only (/netonly, recommended: also works outside the domain)",
-        ["Config.AltHint"] = "Without a saved password, it is asked at every launch. The account must be an administrator of the RDS servers.",
-        ["Alt.PromptTitle"] = "Active Directory account",
-        ["Alt.PromptText"] = "Password for {0}:",
-        ["Alt.Failed"] = "Unable to restart Dahu as {0}:\n{1}",
-        ["Alt.Status"] = " - network account: {0}",
-        ["Alt.Testing"] = "Checking account {0}...",
-        ["Alt.TestCredOk"] = "Credentials: validated by the domain.",
-        ["Alt.TestCredFail"] = "Credentials: REJECTED ({0}).",
-        ["Alt.TestCredSkip"] = "Credentials: cannot be validated from this computer ({0}), testing server access instead.",
-        ["Alt.TestAccessOk"] = "Access to {0}: OK ({1} session(s) read).",
-        ["Alt.TestAccessFail"] = "Access to {0}: FAILED - {1}",
-        ["Alt.TestNoServer"] = "No server or broker configured: server access not tested.",
-        ["Alt.TestOkMsg"] = "Account {0} verified.\n\n{1}",
-        ["Alt.SaveAnyway"] = "Account {0} does not seem to have the required access:\n\n{1}\n\nSave anyway?",
-        ["Config.Confirm"] = "Ask for confirmation before each action",
-        ["Config.HistoryDays"] = "History: days to read",
-        ["Config.Ldap"] = "LDAP path (empty = current domain)",
-        ["Config.Saved"] = "Settings saved.",
-        ["Config.File"] = "Settings file: {0}",
-        ["Config.Section.Servers"] = "Servers",
-        ["Config.Section.Profiles"] = "User profiles",
-        ["Config.Section.Behavior"] = "Behavior",
-        ["Config.Section.Account"] = "Active Directory account",
-        ["Config.Section.Columns"] = "Visible columns in the Sessions tab",
-        ["Config.Columns.Hint"] = "Uncheck the columns to hide. Applied when saving.",
-        ["Profiles.Hint"] = "UPD shares contain UVHD-<SID>.vhdx files; FSLogix shares contain <user>_<SID> folders.",
-        ["Profiles.Filter"] = "Filter (user, SID, file)",
-        ["History.Hint"] = "Reads Microsoft-Windows-TerminalServices-LocalSessionManager/Operational (events 21, 23, 24, 25) on each server.",
-        ["History.User"] = "User (empty = all)",
-        ["History.Server"] = "Server (empty = all)",
-        ["Detail.Title"] = "Session details",
-        ["Proc.Title"] = "Processes",
-        ["Ad.Title"] = "Active Directory account",
-        ["Ad.NotFound"] = "Account not found in directory.",
-        ["Ad.Disable"] = "Disable account",
-        ["Ad.Enable"] = "Enable account",
-        ["Ad.Unlock"] = "Unlock",
-        ["Ad.ForcePwd"] = "Must change password at next logon",
-        ["State.Active"] = "Active",
-        ["State.Connected"] = "Connected",
-        ["State.ConnectQuery"] = "Connecting",
-        ["State.Shadow"] = "Shadow",
-        ["State.Disconnected"] = "Disconnected",
-        ["State.Idle"] = "Idle",
-        ["State.Listen"] = "Listen",
-        ["State.Reset"] = "Reset",
-        ["State.Down"] = "Down",
-        ["State.Init"] = "Init",
-        ["Mode.Production"] = "Production",
-        ["Mode.Drain"] = "Maintenance (drain)",
-        ["Mode.DrainReboot"] = "Maintenance until reboot",
-        ["Mode.LogonsDisabled"] = "Logons disabled",
-        ["Mode.Unknown"] = "?",
-        ["Type.Desktop"] = "Desktop",
-        ["Type.RemoteApp"] = "RemoteApp",
-        ["About.Text"] = "Dahu is an administration tool for RDS (Remote Desktop Services) farms.\n\nIt lets you view the sessions open on the farm servers and act on them (message, disconnect, log off, processes), monitor server health, manage UPD / FSLogix profiles and browse the connection history.\n\nPortable rewrite of Galinette Cendrée (ydhem). GPLv3 license.",
-        ["About.Author"] = "Created by Maxokie",
-        ["Err.NoSelection"] = "Select at least one session.",
-        ["Err.NoServer"] = "Select a server.",
-    };
+        try
+        {
+            code = code.Trim().ToLowerInvariant();
+            if (code.Length == 0) return;
+            var entries = JsonSerializer.Deserialize<Dictionary<string, string>>(json, JsonOpts);
+            if (entries == null) return;
+            if (!tables.TryGetValue(code, out var table)) tables[code] = table = new Dictionary<string, string>();
+            foreach (var (k, v) in entries) if (v != null) table[k] = v;
+        }
+        catch (Exception ex) { Log.Error($"Fichier de langue illisible : {source}", ex); }
+    }
 }

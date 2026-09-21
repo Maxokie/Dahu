@@ -185,8 +185,8 @@
                                                   RecognizesAccessKey="False" SnapsToDevicePixels="True" />
                             </DockPanel>
                         </Border>
-                        <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left" Style="{StaticResource ColumnHeaderGripper}" />
-                        <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right" Style="{StaticResource ColumnHeaderGripper}" />
+                        <Thumb x:Name="LeftGripper" HorizontalAlignment="Left" Style="{StaticResource ColumnHeaderGripper}" />
+                        <Thumb x:Name="RightGripper" HorizontalAlignment="Right" Style="{StaticResource ColumnHeaderGripper}" />
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="SortDirection" Value="Ascending">

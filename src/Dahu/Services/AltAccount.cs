@@ -40,11 +40,11 @@ public static class AltAccount
     public static void Launch(string user, string password, bool netOnly)
     {
         user = user.Trim();
-        if (user.Length == 0) throw new InvalidOperationException("Compte non renseigné.");
+        if (user.Length == 0) throw new InvalidOperationException(Loc.T("Err.NoAccount"));
 
         var (name, domain) = SplitUser(user);
 
-        var exe = Environment.ProcessPath ?? throw new InvalidOperationException("Chemin de l'exécutable introuvable.");
+        var exe = Environment.ProcessPath ?? throw new InvalidOperationException(Loc.T("Err.ExeNotFound"));
         var cmd = new StringBuilder();
         cmd.Append('"').Append(exe).Append("\" ").Append(ArgName).Append(" \"").Append(user).Append('"');
         cmd.Append(" /config \"").Append(ConfigService.FilePath).Append('"');

@@ -27,7 +27,7 @@ public static class Net
         {
             cts.Cancel();
             _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
-            throw new TimeoutException($"Délai dépassé ({timeout.TotalSeconds:0}s)");
+            throw new TimeoutException(string.Format(Loc.T("Err.Timeout"), timeout.TotalSeconds.ToString("0")));
         }
         cts.Cancel();
         return await task.ConfigureAwait(false);

@@ -1,5 +1,9 @@
 using System.ComponentModel;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 using Dahu.Core;
 
@@ -24,6 +28,7 @@ public static class GridLayout
     public static void Attach(string name, DataGrid grid)
     {
         Grids.Add((name, grid));
+        Setup(grid);
         Restore(name, grid);
 
         var widthProp = DependencyPropertyDescriptor.FromProperty(DataGridColumn.WidthProperty, typeof(DataGridColumn));
@@ -37,7 +42,102 @@ public static class GridLayout
 
     public static void RestoreAll()
     {
-        foreach (var (name, grid) in Grids) Restore(name, grid);
+        foreach (var (name, grid) in Grids) { Restore(name, grid); Freeze(grid); }
+    }
+
+    public static void Setup(DataGrid grid)
+    {
+        var defaults = grid.Columns.ToDictionary(c => c, c => c.Width);
+        AttachResize(grid);
+        grid.Loaded += (_, _) => FreezeLater(grid);
+        grid.PreviewMouseRightButtonUp += (_, e) =>
+        {
+            var col = HeaderColumn(grid, e.OriginalSource as DependencyObject, out var onHeader);
+            if (!onHeader) return;
+            e.Handled = true;
+            if (col == null || !defaults.TryGetValue(col, out var width)) return;
+            col.Width = width;
+            if (width.IsStar) FreezeLater(grid);
+        };
+        grid.ContextMenuOpening += (_, e) =>
+        {
+            HeaderColumn(grid, e.OriginalSource as DependencyObject, out var onHeader);
+            if (onHeader) e.Handled = true;
+        };
+    }
+
+    private static void FreezeLater(DataGrid grid)
+        => grid.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => Freeze(grid));
+
+    private static DataGridColumn? HeaderColumn(DataGrid grid, DependencyObject? source, out bool onHeader)
+    {
+        Thumb? thumb = null;
+        for (var d = source; d != null && d != grid; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+        {
+            if (d is Thumb t) thumb ??= t;
+            if (d is DataGridColumnHeader header)
+            {
+                onHeader = true;
+                return thumb != null ? ResizeTarget(grid, thumb) : header.Column;
+            }
+        }
+        onHeader = false;
+        return null;
+    }
+
+    private static void AttachResize(DataGrid grid)
+    {
+        DataGridColumn? target = null;
+        double startWidth = 0, startX = 0;
+
+        grid.AddHandler(Thumb.DragStartedEvent, new DragStartedEventHandler((_, e) =>
+        {
+            target = ResizeTarget(grid, e.OriginalSource as Thumb);
+            if (target == null) return;
+            startWidth = target.ActualWidth;
+            startX = Mouse.GetPosition(grid).X;
+            e.Handled = true;
+        }));
+        grid.AddHandler(Thumb.DragDeltaEvent, new DragDeltaEventHandler((_, e) =>
+        {
+            if (target == null) return;
+            var w = Math.Clamp(startWidth + Mouse.GetPosition(grid).X - startX, target.MinWidth, target.MaxWidth);
+            target.Width = new DataGridLength(w, DataGridLengthUnitType.Pixel);
+            e.Handled = true;
+        }));
+        grid.AddHandler(Thumb.DragCompletedEvent, new DragCompletedEventHandler((_, e) =>
+        {
+            if (target == null) return;
+            target = null;
+            e.Handled = true;
+        }));
+    }
+
+    private static DataGridColumn? ResizeTarget(DataGrid grid, Thumb? thumb)
+    {
+        if (thumb?.TemplatedParent is not DataGridColumnHeader header || header.Column == null) return null;
+        if (!grid.CanUserResizeColumns) return null;
+
+        DataGridColumn? col = thumb.Name switch
+        {
+            "RightGripper" => header.Column,
+            "LeftGripper" => grid.Columns
+                .Where(c => c.Visibility == System.Windows.Visibility.Visible && c.DisplayIndex < header.Column.DisplayIndex)
+                .OrderByDescending(c => c.DisplayIndex).FirstOrDefault(),
+            _ => null,
+        };
+        return col is { CanUserResize: true } ? col : null;
+    }
+
+    private static void Freeze(DataGrid grid)
+    {
+        if (!grid.IsLoaded) return;
+        foreach (var col in grid.Columns)
+        {
+            if (!col.Width.IsStar) continue;
+            var w = Math.Max(col.ActualWidth, Math.Max(col.MinWidth, 150));
+            col.Width = new DataGridLength(w, DataGridLengthUnitType.Pixel);
+        }
     }
 
     private static void OnChanged(object? sender, EventArgs e)

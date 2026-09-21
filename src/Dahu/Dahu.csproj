@@ -13,7 +13,8 @@
     <StartupObject>Dahu.App</StartupObject>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <ApplicationIcon>Assets\dahu.ico</ApplicationIcon>
-    <Version>1.0.0</Version>
+    <Version>1.1</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>Dahu</Company>
     <Product>Dahu - Administration RDS</Product>
     <Description>Outil portable d'administration des fermes RDS (remplaçant de Galinette Cendrée)</Description>
@@ -41,6 +42,10 @@
 
   <ItemGroup>
     <Resource Include="Assets\dahu.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\lang\*.json" LogicalName="Dahu.Lang.%(Filename).json" Link="lang\%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

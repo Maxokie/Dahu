@@ -34,7 +34,7 @@ public static class FarmService
             progress?.Report($"Broker {b}...");
             try
             {
-                if (!await Net.PortOpenAsync(b, 135, TimeSpan.FromSeconds(3), ct)) throw new TimeoutException("port TCP 135 (WMI/RPC) fermé ou serveur injoignable");
+                if (!await Net.PortOpenAsync(b, 135, TimeSpan.FromSeconds(3), ct)) throw new TimeoutException(Loc.T("Err.Port135Broker"));
                 return await Net.WithTimeout(c => BrokerService.Query(b, timeout, c), timeout + TimeSpan.FromSeconds(4), ct);
             }
             catch (OperationCanceledException) { throw; }
@@ -84,12 +84,12 @@ public static class FarmService
 
                 var wtsTask = Task.Run(async () =>
                 {
-                    if (!await p445) throw new TimeoutException("port TCP 445 fermé ou serveur injoignable");
+                    if (!await p445) throw new TimeoutException(Loc.T("Err.Port445"));
                     return await Net.WithTimeout(c => WtsApi.EnumerateSessions(name, cfg.ShowSystemSessions, c), timeout, ct);
                 }, ct);
                 var wmiTask = Task.Run(async () =>
                 {
-                    if (!await p135) throw new TimeoutException("port TCP 135 (WMI) fermé");
+                    if (!await p135) throw new TimeoutException(Loc.T("Err.Port135"));
                     await Net.WithTimeout(c => WmiService.FillServerInfo(srv, cfg.CollectPerformance, timeout, c), timeout + TimeSpan.FromSeconds(4), ct);
                 }, ct);
 

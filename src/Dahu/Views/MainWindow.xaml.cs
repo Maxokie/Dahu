@@ -44,7 +44,7 @@ public partial class MainWindow : Window
         TxtUser.Text = $"{Environment.UserDomainName}\\{Environment.UserName} @ {Environment.MachineName}"
                      + (AltAccount.ActiveUser != null ? string.Format(Loc.T("Alt.Status"), AltAccount.ActiveUser) : "");
         TxtIdentity.Text = $"{TxtUser.Text}\n{string.Format(Loc.T("Config.File"), ConfigService.FilePath)}\n{Log.Path}";
-        TxtVersion.Text = $"Version {typeof(App).Assembly.GetName().Version?.ToString(3)} - .NET {Environment.Version} - {(AppPaths.IsPortable ? "portable" : "%APPDATA%")}";
+        TxtVersion.Text = $"Version {typeof(App).Assembly.GetName().Version?.ToString(2)} - .NET {Environment.Version} - {(AppPaths.IsPortable ? "portable" : "%APPDATA%")}";
         TxtStatus.Text = Loc.T("Status.Ready");
         LoadConfigToForm();
         ApplySessionColumns();
@@ -59,6 +59,7 @@ public partial class MainWindow : Window
 
         Loaded += async (_, _) =>
         {
+            _ = CheckForUpdateAsync();
             if (Cfg.Brokers.Count == 0 && Cfg.Servers.Count == 0)
             {
                 TxtStatus.Text = Loc.T("Status.NoServers");
@@ -77,6 +78,26 @@ public partial class MainWindow : Window
             }
             catch (Exception ex) { Log.Error("Sauvegarde à la fermeture", ex); }
         };
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var info = await UpdateService.CheckAsync();
+            if (info == null || !IsLoaded) return;
+            if (string.Equals(Cfg.IgnoredUpdateVersion, info.Tag, StringComparison.OrdinalIgnoreCase)) return;
+
+            var current = typeof(App).Assembly.GetName().Version?.ToString(2) ?? "";
+            var (update, ignore) = Dialogs.UpdateAvailable(this, current, info.Tag);
+            if (ignore)
+            {
+                Cfg.IgnoredUpdateVersion = info.Tag;
+                ConfigService.Save();
+            }
+            if (update) Tools.OpenFile(info.Url);
+        }
+        catch (Exception ex) { Log.Error("Vérification de mise à jour", ex); }
     }
 
     private void ApplyTimer()
@@ -179,7 +200,8 @@ public partial class MainWindow : Window
     private bool SessionFilter(object o)
     {
         if (o is not RdsSession s) return false;
-        if (ChkActiveOnly.IsChecked == true && s.State != SessionState.Active) return false;
+        if (CmbStateFilter.SelectedIndex == 1 && s.State != SessionState.Active) return false;
+        if (CmbStateFilter.SelectedIndex == 2 && s.State != SessionState.Disconnected) return false;
         var f = TxtFilter.Text.Trim();
         if (f.Length == 0) return true;
         return Contains(s.UserName, f) || Contains(s.Server, f) || Contains(s.ClientName, f) || Contains(s.ClientIp, f)
@@ -201,6 +223,8 @@ public partial class MainWindow : Window
         TxtFilterHint.Visibility = TxtFilter.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         _sessionsView.Refresh();
     }
+
+    private void StateFilter_Changed(object sender, SelectionChangedEventArgs e) => _sessionsView?.Refresh();
 
     private void ProfileFilter_Changed(object sender, TextChangedEventArgs e) => _profilesView.Refresh();
 
@@ -236,10 +260,10 @@ public partial class MainWindow : Window
             (Loc.T("Col.Protocol"), s.Protocol), (Loc.T("Col.ClientBuild"), s.ClientBuild.ToString()),
             (Loc.T("Col.Resolution"), s.Resolution), (Loc.T("Col.Station"), s.StationName),
             (Loc.T("Col.Logon"), D(s.LogonTime)), (Loc.T("Col.Connect"), D(s.ConnectTime)),
-            (Loc.T("Col.Disconnect"), D(s.DisconnectTime)), ("Dernière activité", D(s.LastInputTime)),
-            (Loc.T("Col.Idle"), s.IdleText), ("Programme initial", s.InitialProgram),
-            ("Répertoire client", s.ClientDirectory),
-            ("Octets reçus / envoyés", $"{s.IncomingBytes:N0} / {s.OutgoingBytes:N0}"),
+            (Loc.T("Col.Disconnect"), D(s.DisconnectTime)), (Loc.T("Detail.LastInput"), D(s.LastInputTime)),
+            (Loc.T("Col.Idle"), s.IdleText), (Loc.T("Detail.InitialProgram"), s.InitialProgram),
+            (Loc.T("Detail.ClientDirectory"), s.ClientDirectory),
+            (Loc.T("Detail.Bytes"), $"{s.IncomingBytes:N0} / {s.OutgoingBytes:N0}"),
         };
         Dialogs.KeyValues(this, $"{Loc.T("Detail.Title")} - {s.QualifiedUser} @ {s.Server}#{s.SessionId}", rows);
     }
@@ -447,7 +471,7 @@ public partial class MainWindow : Window
             _profiles.Clear();
             foreach (var p in list.OrderBy(p => p.User).ThenBy(p => p.FileName)) _profiles.Add(p);
             var total = list.Sum(p => p.SizeBytes) / (double)(1L << 30);
-            TxtProfileStatus.Text = $"{list.Count} - {total:0.0} Go - {list.Count(p => p.Mounted)} monté(s)";
+            TxtProfileStatus.Text = string.Format(Loc.T("Profiles.Status"), list.Count, total, list.Count(p => p.Mounted));
         }
         catch (Exception ex) { TxtProfileStatus.Text = ex.Message; Log.Error("Profils", ex); }
         finally { BtnScanProfiles.IsEnabled = true; }
@@ -482,7 +506,7 @@ public partial class MainWindow : Window
     private async void ProfileDelete_Click(object sender, RoutedEventArgs e)
     {
         var p = OneProfile(); if (p == null || string.IsNullOrEmpty(p.Path)) return;
-        if (p.Mounted) { Dialogs.Error(this, "Profil monté (en cours d'utilisation) : suppression refusée."); return; }
+        if (p.Mounted) { Dialogs.Error(this, Loc.T("Profiles.MountedRefused")); return; }
         if (MessageBox.Show(this, string.Format(Loc.T("Confirm.DeleteProfile"), p.Path), Loc.T("Confirm.Title"),
                 MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         try
@@ -547,7 +571,7 @@ public partial class MainWindow : Window
         CfgTimeout.Text = c.TimeoutSeconds.ToString();
         CfgHistoryDays.Text = c.HistoryDays.ToString();
         TxtHistoryDays.Text = c.HistoryDays.ToString();
-        CfgLanguage.SelectedValue = c.Language == "en" ? "en" : "fr";
+        CfgLanguage.SelectedValue = Loc.Normalize(c.Language);
         CfgAutoRefresh.IsChecked = c.AutoRefresh;
         CfgConfirm.IsChecked = c.ConfirmActions;
         CfgSystem.IsChecked = c.ShowSystemSessions;
@@ -577,7 +601,7 @@ public partial class MainWindow : Window
         if (int.TryParse(CfgRefresh.Text, out var r)) c.RefreshSeconds = Math.Clamp(r, 10, 3600);
         if (int.TryParse(CfgTimeout.Text, out var t)) c.TimeoutSeconds = Math.Clamp(t, 2, 120);
         if (int.TryParse(CfgHistoryDays.Text, out var h)) c.HistoryDays = Math.Clamp(h, 1, 365);
-        var lang = CfgLanguage.SelectedValue as string ?? "fr";
+        var lang = CfgLanguage.SelectedValue as string ?? Loc.Normalize(c.Language);
         var langChanged = lang != c.Language;
         c.Language = lang;
         c.AutoRefresh = CfgAutoRefresh.IsChecked == true;

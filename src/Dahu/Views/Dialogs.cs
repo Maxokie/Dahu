@@ -107,7 +107,7 @@ internal static class Dialogs
         var refresh = new Button { Content = Loc.T("Btn.Refresh"), Style = (Style)owner.FindResource("PrimaryButton") };
         var kill = new Button { Content = Loc.T("Btn.Kill") };
         var status = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), Foreground = Brushes.Gray };
-        var filter = new TextBox { Width = 220, Margin = new Thickness(12, 0, 0, 0), ToolTip = "Filtre" };
+        var filter = new TextBox { Width = 220, Margin = new Thickness(12, 0, 0, 0), ToolTip = Loc.T("Proc.Filter") };
         bar.Children.Add(refresh); bar.Children.Add(kill); bar.Children.Add(filter); bar.Children.Add(status);
         DockPanel.SetDock(bar, Dock.Top);
         dock.Children.Add(bar);
@@ -121,6 +121,7 @@ internal static class Dialogs
         grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Col.CpuTime"), Binding = new Binding("CpuTimeText"), Width = 80, SortMemberPath = "CpuTime" });
         grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Col.Started"), Binding = new Binding("Started") { StringFormat = "dd/MM HH:mm:ss" }, Width = 110 });
         grid.Columns.Add(new DataGridTextColumn { Header = Loc.T("Col.Path"), Binding = new Binding("Path"), Width = new DataGridLength(1, DataGridLengthUnitType.Star) });
+        GridLayout.Setup(grid);
         dock.Children.Add(grid);
         win.Content = dock;
 
@@ -170,35 +171,35 @@ internal static class Dialogs
         if (u == null) { Info(owner, Loc.T("Ad.NotFound")); return; }
 
         string D(DateTime? d) => d?.ToString("dd/MM/yyyy HH:mm") ?? "";
-        string B(bool b) => b ? (Loc.I.Language == "en" ? "Yes" : "Oui") : (Loc.I.Language == "en" ? "No" : "Non");
+        string B(bool b) => Loc.T(b ? "Common.Yes" : "Common.No");
         var rows = new List<(string, string)>
         {
             ("sAMAccountName", u.SamAccountName),
-            (Loc.I.Language == "en" ? "Display name" : "Nom affiché", u.DisplayName),
-            ("E-mail", u.Email),
-            ("Description", u.Description),
-            (Loc.I.Language == "en" ? "Enabled" : "Activé", B(u.Enabled)),
-            (Loc.I.Language == "en" ? "Locked out" : "Verrouillé", B(u.LockedOut)),
-            (Loc.I.Language == "en" ? "Last logon" : "Dernière ouverture", D(u.LastLogon)),
-            (Loc.I.Language == "en" ? "Password last set" : "Mot de passe modifié le", D(u.LastPasswordSet)),
-            (Loc.I.Language == "en" ? "Must change password" : "Doit changer le mot de passe", B(u.MustChangePassword)),
-            (Loc.I.Language == "en" ? "Password never expires" : "Mot de passe n'expire jamais", B(u.PasswordNeverExpires)),
-            (Loc.I.Language == "en" ? "Account expires" : "Expiration du compte", D(u.AccountExpires)),
-            (Loc.I.Language == "en" ? "Department" : "Service", u.Department),
-            (Loc.I.Language == "en" ? "Title" : "Fonction", u.Title),
-            (Loc.I.Language == "en" ? "Company" : "Société", u.Company),
-            (Loc.I.Language == "en" ? "Office" : "Bureau", u.Office),
-            (Loc.I.Language == "en" ? "Phone" : "Téléphone", u.Phone),
-            ("Mobile", u.Mobile),
-            ("Manager", u.Manager),
-            (Loc.I.Language == "en" ? "Home directory" : "Dossier de base", u.HomeDirectory),
-            (Loc.I.Language == "en" ? "Profile path" : "Chemin du profil", u.ProfilePath),
+            (Loc.T("Ad.Field.DisplayName"), u.DisplayName),
+            (Loc.T("Ad.Field.Email"), u.Email),
+            (Loc.T("Ad.Field.Description"), u.Description),
+            (Loc.T("Ad.Field.Enabled"), B(u.Enabled)),
+            (Loc.T("Ad.Field.LockedOut"), B(u.LockedOut)),
+            (Loc.T("Ad.Field.LastLogon"), D(u.LastLogon)),
+            (Loc.T("Ad.Field.PwdLastSet"), D(u.LastPasswordSet)),
+            (Loc.T("Ad.Field.MustChangePwd"), B(u.MustChangePassword)),
+            (Loc.T("Ad.Field.PwdNeverExpires"), B(u.PasswordNeverExpires)),
+            (Loc.T("Ad.Field.AccountExpires"), D(u.AccountExpires)),
+            (Loc.T("Ad.Field.Department"), u.Department),
+            (Loc.T("Ad.Field.Title"), u.Title),
+            (Loc.T("Ad.Field.Company"), u.Company),
+            (Loc.T("Ad.Field.Office"), u.Office),
+            (Loc.T("Ad.Field.Phone"), u.Phone),
+            (Loc.T("Ad.Field.Mobile"), u.Mobile),
+            (Loc.T("Ad.Field.Manager"), u.Manager),
+            (Loc.T("Ad.Field.HomeDirectory"), u.HomeDirectory),
+            (Loc.T("Ad.Field.ProfilePath"), u.ProfilePath),
             ("TS profile path", u.TsProfilePath),
             ("TS home directory", u.TsHomeDirectory),
-            (Loc.I.Language == "en" ? "Created" : "Créé le", D(u.WhenCreated)),
+            (Loc.T("Ad.Field.Created"), D(u.WhenCreated)),
             ("SID", u.Sid),
             ("DN", u.DistinguishedName),
-            (Loc.I.Language == "en" ? "Groups" : "Groupes", string.Join(", ", u.Groups)),
+            (Loc.T("Ad.Field.Groups"), string.Join(", ", u.Groups)),
         };
 
         Window? win = null;
@@ -224,6 +225,27 @@ internal static class Dialogs
             }),
         };
         win = KeyValues(owner, $"{Loc.T("Ad.Title")} - {domain}\\{sam}", rows, actions, 700, 640);
+    }
+
+    public static (bool update, bool ignore) UpdateAvailable(Window owner, string current, string latest)
+    {
+        var win = Base(owner, Loc.T("Update.Title"), 440, 200);
+        win.ResizeMode = ResizeMode.NoResize;
+        win.SizeToContent = SizeToContent.Height;
+        var sp = new StackPanel { Margin = new Thickness(14) };
+        sp.Children.Add(new TextBlock { Text = string.Format(Loc.T("Update.Text"), latest, current), TextWrapping = TextWrapping.Wrap });
+        var ignore = new CheckBox { Content = Loc.T("Update.Ignore"), Margin = new Thickness(0, 12, 0, 0) };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) };
+        var ok = new Button { Content = Loc.T("Update.Yes"), Style = (Style)owner.FindResource("PrimaryButton"), IsDefault = true, MinWidth = 110, Margin = new Thickness(0, 0, 8, 0) };
+        var no = new Button { Content = Loc.T("Update.No"), IsCancel = true, MinWidth = 90 };
+        bool update = false;
+        ok.Click += (_, _) => { update = true; win.Close(); };
+        no.Click += (_, _) => win.Close();
+        buttons.Children.Add(ok); buttons.Children.Add(no);
+        sp.Children.Add(ignore); sp.Children.Add(buttons);
+        win.Content = sp;
+        win.ShowDialog();
+        return (update, ignore.IsChecked == true);
     }
 
     public static string? AskPassword(Window? owner, string user)
