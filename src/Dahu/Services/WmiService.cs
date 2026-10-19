@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Management;
+using System.Text.RegularExpressions;
 using Dahu.Core;
 using Dahu.Models;
 
@@ -7,6 +8,11 @@ namespace Dahu.Services;
 
 public static class WmiService
 {
+    private static readonly ConcurrentDictionary<string, ManagementScope> ScopeCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Regex LogonIdRx = new(@"LogonId=""(\d+)""", RegexOptions.Compiled);
+    private static readonly Regex HandleRx = new(@"Handle=""(\d+)""", RegexOptions.Compiled);
+    private static readonly Regex AccountRx = new(@"Domain=""([^""]*)"",Name=""([^""]*)""", RegexOptions.Compiled);
+
     public static ManagementScope Connect(string server, string ns, TimeSpan timeout)
     {
         var opts = new ConnectionOptions
@@ -21,8 +27,6 @@ public static class WmiService
         return scope;
     }
 
-    private static readonly ConcurrentDictionary<string, ManagementScope> ScopeCache = new(StringComparer.OrdinalIgnoreCase);
-
     private static ManagementScope CachedScope(string server, string ns, TimeSpan timeout)
     {
         var key = server + "|" + ns;
@@ -30,6 +34,13 @@ public static class WmiService
         s = Connect(server, ns, timeout);
         ScopeCache[key] = s;
         return s;
+    }
+
+    public static void Prune(IEnumerable<string> servers)
+    {
+        var keep = new HashSet<string>(servers, StringComparer.OrdinalIgnoreCase);
+        foreach (var key in ScopeCache.Keys.Where(k => !keep.Contains(k[..k.IndexOf('|')])).ToList())
+            ScopeCache.TryRemove(key, out _);
     }
 
     private static void WithCachedScope(string server, string ns, TimeSpan timeout, CancellationToken ct, Action<ManagementScope> work)
@@ -45,12 +56,15 @@ public static class WmiService
         }
     }
 
-    private static IEnumerable<ManagementObject> Query(ManagementScope scope, string wql, TimeSpan timeout)
+    internal static IEnumerable<ManagementObject> Query(ManagementScope scope, string wql, TimeSpan timeout)
     {
-        var q = new ObjectQuery(wql);
         var eo = new EnumerationOptions { Timeout = timeout, ReturnImmediately = true, Rewindable = false };
-        using var searcher = new ManagementObjectSearcher(scope, q, eo);
-        foreach (ManagementObject mo in searcher.Get()) yield return mo;
+        using var searcher = new ManagementObjectSearcher(scope, new ObjectQuery(wql), eo);
+        using var results = searcher.Get();
+        foreach (ManagementObject mo in results)
+        {
+            using (mo) yield return mo;
+        }
     }
 
     private static DateTime? WmiDate(object? o)
@@ -104,7 +118,7 @@ public static class WmiService
                 if (total > 0)
                 {
                     srv.MemoryPercent = Math.Round((total - free) / total * 100, 1);
-                    srv.MemoryText = $"{(total - free) / 1024:0.0} / {total / 1024:0.0} Go";
+                    srv.MemoryText = $"{(total - free) / 1024:0.0} / {total / 1024:0.0} {Loc.T("Unit.GB")}";
                 }
             }
         }
@@ -125,7 +139,7 @@ public static class WmiService
                 if (sz > 0)
                 {
                     srv.DiskFreePercent = Math.Round(fs / sz * 100, 1);
-                    srv.DiskText = $"{fs / (1L << 30):0.0} Go ({srv.DiskFreePercent:0}%)";
+                    srv.DiskText = $"{fs / (1L << 30):0.0} {Loc.T("Unit.GB")} ({srv.DiskFreePercent:0}%)";
                 }
             }
         }
@@ -168,6 +182,7 @@ public static class WmiService
     {
         var scope = Connect(server, "root\\cimv2", timeout);
         var where = sessionId is { } sid ? $" WHERE SessionId={sid}" : "";
+        var owners = OwnersByPid(server, scope, timeout, ct);
         var list = new List<RdsProcess>();
         foreach (var p in Query(scope, "SELECT ProcessId, SessionId, Name, WorkingSetSize, KernelModeTime, UserModeTime, CreationDate, ExecutablePath FROM Win32_Process" + where, timeout))
         {
@@ -185,19 +200,59 @@ public static class WmiService
             var kt = Convert.ToUInt64(p["KernelModeTime"] ?? 0UL);
             var ut = Convert.ToUInt64(p["UserModeTime"] ?? 0UL);
             proc.CpuTime = TimeSpan.FromTicks((long)(kt + ut));
-            try
-            {
-                using var o = p.InvokeMethod("GetOwner", null, null);
-                if (o != null && Convert.ToInt32(o["ReturnValue"]) == 0)
-                {
-                    var d = o["Domain"] as string; var u = o["User"] as string;
-                    proc.Owner = string.IsNullOrEmpty(d) ? u ?? "" : $"{d}\\{u}";
-                }
-            }
-            catch { }
+            proc.Owner = owners.TryGetValue(proc.Pid, out var owner) ? owner : QueryOwner(p);
             list.Add(proc);
         }
         return list;
+    }
+
+    private static Dictionary<int, string> OwnersByPid(string server, ManagementScope scope, TimeSpan timeout, CancellationToken ct)
+    {
+        var byLogon = new Dictionary<string, string>();
+        var byPid = new Dictionary<int, string>();
+        try
+        {
+            foreach (var o in Query(scope, "SELECT Antecedent, Dependent FROM Win32_LoggedOnUser", timeout))
+            {
+                ct.ThrowIfCancellationRequested();
+                var account = AccountRx.Match(o["Antecedent"] as string ?? "");
+                var logon = LogonIdRx.Match(o["Dependent"] as string ?? "");
+                if (!account.Success || !logon.Success) continue;
+                var domain = account.Groups[1].Value;
+                var user = account.Groups[2].Value;
+                byLogon[logon.Groups[1].Value] = domain.Length == 0 ? user : $"{domain}\\{user}";
+            }
+            foreach (var o in Query(scope, "SELECT Antecedent, Dependent FROM Win32_SessionProcess", timeout))
+            {
+                ct.ThrowIfCancellationRequested();
+                var logon = LogonIdRx.Match(o["Antecedent"] as string ?? "");
+                var handle = HandleRx.Match(o["Dependent"] as string ?? "");
+                if (logon.Success && handle.Success && int.TryParse(handle.Groups[1].Value, out var pid) && byLogon.TryGetValue(logon.Groups[1].Value, out var owner))
+                    byPid[pid] = owner;
+            }
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            Log.Warn($"{server}: propriétaires via Win32_SessionProcess indisponibles ({ex.Message}), repli sur GetOwner");
+        }
+        return byPid;
+    }
+
+    private static string QueryOwner(ManagementObject p)
+    {
+        try
+        {
+            using var o = p.InvokeMethod("GetOwner", null, null);
+            if (o != null && Convert.ToInt32(o["ReturnValue"]) == 0)
+            {
+                var d = o["Domain"] as string;
+                var u = o["User"] as string;
+                return string.IsNullOrEmpty(d) ? u ?? "" : $"{d}\\{u}";
+            }
+        }
+        catch { }
+        return "";
     }
 
     public static void KillProcess(string server, int pid, TimeSpan timeout)
@@ -205,7 +260,8 @@ public static class WmiService
         var scope = Connect(server, "root\\cimv2", timeout);
         foreach (var p in Query(scope, $"SELECT ProcessId FROM Win32_Process WHERE ProcessId={pid}", timeout))
         {
-            p.InvokeMethod("Terminate", new object[] { 1 });
+            var rv = Convert.ToInt32(p.InvokeMethod("Terminate", new object[] { 1 }) ?? 0);
+            if (rv != 0) throw new InvalidOperationException(string.Format(Loc.T("Err.ProcessTerminate"), pid, rv));
             return;
         }
         throw new InvalidOperationException(string.Format(Loc.T("Err.ProcessNotFound"), pid));

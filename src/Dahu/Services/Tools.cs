@@ -17,12 +17,15 @@ public static class Tools
     }
 
     public static void RdpAdmin(string server) => Start("mstsc.exe", $"/v:{server} /admin");
-    public static void Rdp(string host) => Start("mstsc.exe", $"/v:{host}");
-    public static void Ping(string host) => Start("cmd.exe", $"/k ping -t {host}");
+    public static void Rdp(string host) => Start("mstsc.exe", $"/v:{CheckHost(host)}");
+    public static void Ping(string host) => Start("cmd.exe", $"/k ping -t {CheckHost(host)}");
     public static void Explorer(string path) => Start("explorer.exe", $"\"{path}\"");
     public static void CompMgmt(string server) => Start("mmc.exe", $"compmgmt.msc /computer:{server}");
     public static void Services(string server) => Start("mmc.exe", $"services.msc /computer:{server}");
     public static void OpenFile(string path) => Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+
+    private static string CheckHost(string host)
+        => Net.IsValidHost(host) ? host : throw new ArgumentException(string.Format(Loc.T("Err.InvalidHost"), host));
 
     private static void Start(string file, string args)
         => Process.Start(new ProcessStartInfo(file, args) { UseShellExecute = true });

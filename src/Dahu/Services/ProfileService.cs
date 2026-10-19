@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Security.Principal;
 using System.Text.RegularExpressions;
@@ -10,21 +11,23 @@ public static class ProfileService
 {
     private static readonly Regex SidRx = new(@"S-1-5-21-\d+-\d+-\d+-\d+", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Dictionary<string, string> SidCache = new(StringComparer.OrdinalIgnoreCase);
+    private const int Parallelism = 8;
 
     public static List<ProfileEntry> Scan(IEnumerable<string> updShares, IEnumerable<string> fsLogixShares, CancellationToken ct, Action<string>? progress = null)
     {
-        var result = new List<ProfileEntry>();
+        var result = new ConcurrentBag<ProfileEntry>();
+        var options = new ParallelOptions { MaxDegreeOfParallelism = Parallelism, CancellationToken = ct };
+
         foreach (var share in updShares)
         {
             ct.ThrowIfCancellationRequested();
             progress?.Invoke(share);
             try
             {
-                foreach (var f in Directory.EnumerateFiles(share, "UVHD-*.vhd*", SearchOption.TopDirectoryOnly))
+                Parallel.ForEach(Directory.EnumerateFiles(share, "UVHD-*.vhd*", SearchOption.TopDirectoryOnly), options, f => Guard(f, () =>
                 {
-                    ct.ThrowIfCancellationRequested();
                     var fi = new FileInfo(f);
-                    if (fi.Name.Contains("template", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (fi.Name.Contains("template", StringComparison.OrdinalIgnoreCase)) return;
                     var sid = SidRx.Match(fi.Name).Value;
                     result.Add(new ProfileEntry
                     {
@@ -38,12 +41,14 @@ public static class ProfileService
                         Modified = fi.LastWriteTime,
                         Mounted = IsLocked(fi.FullName),
                     });
-                }
+                }));
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
+                ex = Unwrap(ex);
                 Log.Error($"Partage UPD {share} illisible", ex);
-                result.Add(new ProfileEntry { Kind = "UPD", Share = share, FileName = "ERREUR : " + ex.Message });
+                result.Add(new ProfileEntry { Kind = "UPD", Share = share, FileName = string.Format(Loc.T("Profiles.Error"), ex.Message) });
             }
         }
 
@@ -53,19 +58,18 @@ public static class ProfileService
             progress?.Invoke(share);
             try
             {
-                foreach (var dir in Directory.EnumerateDirectories(share))
+                Parallel.ForEach(Directory.EnumerateDirectories(share), options, dir => Guard(dir, () =>
                 {
-                    ct.ThrowIfCancellationRequested();
                     var di = new DirectoryInfo(dir);
                     var sid = SidRx.Match(di.Name).Value;
                     var userFromName = SidRx.Replace(di.Name, "").Trim('_', ' ');
                     var vhds = di.EnumerateFiles("*.vhd*", SearchOption.TopDirectoryOnly).ToList();
-                    if (vhds.Count == 0 && string.IsNullOrEmpty(sid)) continue;
+                    if (vhds.Count == 0 && string.IsNullOrEmpty(sid)) return;
                     var user = !string.IsNullOrEmpty(userFromName) ? userFromName : ResolveSid(sid);
                     if (vhds.Count == 0)
                     {
-                        result.Add(new ProfileEntry { Kind = "FSLogix", Share = share, Path = di.FullName, FileName = "(aucun VHDX)", Sid = sid, User = user, Modified = di.LastWriteTime });
-                        continue;
+                        result.Add(new ProfileEntry { Kind = "FSLogix", Share = share, Path = di.FullName, FileName = Loc.T("Profiles.NoVhd"), Sid = sid, User = user, Modified = di.LastWriteTime });
+                        return;
                     }
                     foreach (var fi in vhds)
                     {
@@ -82,16 +86,28 @@ public static class ProfileService
                             Mounted = IsLocked(fi.FullName),
                         });
                     }
-                }
+                }));
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
+                ex = Unwrap(ex);
                 Log.Error($"Partage FSLogix {share} illisible", ex);
-                result.Add(new ProfileEntry { Kind = "FSLogix", Share = share, FileName = "ERREUR : " + ex.Message });
+                result.Add(new ProfileEntry { Kind = "FSLogix", Share = share, FileName = string.Format(Loc.T("Profiles.Error"), ex.Message) });
             }
         }
-        return result;
+        return result.ToList();
     }
+
+    private static void Guard(string item, Action work)
+    {
+        try { work(); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex) { Log.Warn($"Profil ignoré {item} : {ex.Message}"); }
+    }
+
+    private static Exception Unwrap(Exception ex)
+        => ex is AggregateException ae && ae.InnerExceptions.Count == 1 ? Unwrap(ae.InnerExceptions[0]) : ex;
 
     private static bool IsLocked(string path)
     {
@@ -101,7 +117,6 @@ public static class ProfileService
             return false;
         }
         catch (IOException) { return true; }
-        catch (UnauthorizedAccessException) { return true; }
         catch { return false; }
     }
 
@@ -125,12 +140,15 @@ public static class ProfileService
 
     public static void Delete(ProfileEntry p)
     {
-        if (p.Kind == "UPD") File.Delete(p.Path);
+        if (Directory.Exists(p.Path)) Directory.Delete(p.Path, true);
         else
         {
-            var dir = Path.GetDirectoryName(p.Path);
-            if (File.Exists(p.Path)) File.Delete(p.Path);
-            if (dir != null && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
+            File.Delete(p.Path);
+            if (p.Kind != "UPD")
+            {
+                var dir = Path.GetDirectoryName(p.Path);
+                if (dir != null && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any()) Directory.Delete(dir);
+            }
         }
         Log.Warn($"Profil supprimé : {p.Path}");
     }

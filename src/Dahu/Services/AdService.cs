@@ -94,7 +94,13 @@ public static class AdService
 
         try
         {
-            info.Groups = u.GetGroups().Select(g => g.Name ?? "").Where(n => n.Length > 0).OrderBy(n => n).ToList();
+            using var groups = u.GetGroups();
+            var names = new List<string>();
+            foreach (var g in groups)
+            {
+                using (g) { if (!string.IsNullOrEmpty(g.Name)) names.Add(g.Name); }
+            }
+            info.Groups = names.OrderBy(n => n).ToList();
         }
         catch (Exception ex) { Log.Warn("Lecture groupes AD : " + ex.Message); }
         return info;

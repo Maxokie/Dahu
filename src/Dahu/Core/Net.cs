@@ -1,9 +1,15 @@
 using System.Net.Sockets;
+using System.Text.RegularExpressions;
 
 namespace Dahu.Core;
 
 public static class Net
 {
+    private static readonly Regex HostRx = new(@"^[A-Za-z0-9][A-Za-z0-9._:\-]*$", RegexOptions.Compiled);
+
+    public static bool IsValidHost(string? host)
+        => !string.IsNullOrWhiteSpace(host) && host.Length <= 255 && HostRx.IsMatch(host);
+
     public static async Task<bool> PortOpenAsync(string host, int port, TimeSpan timeout, CancellationToken ct = default)
     {
         try
@@ -14,6 +20,7 @@ public static class Net
             await client.ConnectAsync(host, port, cts.Token).ConfigureAwait(false);
             return client.Connected;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch { return false; }
     }
 
@@ -26,7 +33,8 @@ public static class Net
         if (done != task)
         {
             cts.Cancel();
-            _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
+            Observe(task);
+            ct.ThrowIfCancellationRequested();
             throw new TimeoutException(string.Format(Loc.T("Err.Timeout"), timeout.TotalSeconds.ToString("0")));
         }
         cts.Cancel();
@@ -35,6 +43,9 @@ public static class Net
 
     public static Task WithTimeout(Action<CancellationToken> work, TimeSpan timeout, CancellationToken ct = default)
         => WithTimeout<object?>(c => { work(c); return null; }, timeout, ct);
+
+    public static void Observe(Task task)
+        => _ = task.ContinueWith(t => _ = t.Exception, TaskContinuationOptions.OnlyOnFaulted);
 
     public static string ShortName(string host)
     {

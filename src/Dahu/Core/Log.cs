@@ -7,6 +7,7 @@ public static class Log
 {
     private static readonly object _lock = new();
     private static string? _path;
+    private static StreamWriter? _writer;
     private const long MaxBytes = 2 * 1024 * 1024;
 
     public static string Path => _path ??= System.IO.Path.Combine(AppPaths.DataDir, "Dahu.log");
@@ -22,21 +23,37 @@ public static class Log
         {
             lock (_lock)
             {
-                var fi = new FileInfo(Path);
-                if (fi.Exists && fi.Length > MaxBytes)
+                if (_writer != null && _writer.BaseStream.Length > MaxBytes)
                 {
-                    var old = Path + ".old";
-                    File.Delete(old);
-                    File.Move(Path, old);
+                    _writer.Dispose();
+                    _writer = null;
                 }
-                File.AppendAllText(Path,
-                    $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] [{Environment.CurrentManagedThreadId,3}] {msg}{Environment.NewLine}",
-                    Encoding.UTF8);
+                if (_writer == null)
+                {
+                    Rotate();
+                    _writer = Open();
+                }
+                _writer.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{level}] [{Environment.CurrentManagedThreadId,3}] {msg}");
             }
         }
         catch
         {
         }
+    }
+
+    private static void Rotate()
+    {
+        var fi = new FileInfo(Path);
+        if (!fi.Exists || fi.Length <= MaxBytes) return;
+        var old = Path + ".old";
+        File.Delete(old);
+        File.Move(Path, old);
+    }
+
+    private static StreamWriter Open()
+    {
+        var stream = new FileStream(Path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+        return new StreamWriter(stream, new UTF8Encoding(false)) { AutoFlush = true };
     }
 }
 

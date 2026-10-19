@@ -15,7 +15,7 @@ Single `Dahu.exe` file, no installation, no runtime to deploy.
   Right-click: processes, message to all, restart, shutdown, mstsc, C$ share.
 - **Profiles**: inventory of UPD and FSLogix disks, user resolved from the SID, size, mounted state.
 - **History**: session logons and logoffs read from each server's event log.
-- **Settings**: brokers, hosts, profile shares, timeouts, language, columns, alternate account.
+- **Settings**: brokers, hosts, profile shares, timeouts, language, theme, columns, alternate account.
 
 Interface available in English and French.
 

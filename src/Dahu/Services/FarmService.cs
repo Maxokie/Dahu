@@ -25,8 +25,9 @@ public static class FarmService
         var hosts = new Dictionary<string, (string source, string collection)>(StringComparer.OrdinalIgnoreCase);
         var brokerSessions = new List<BrokerSessionInfo>();
 
-        foreach (var s in cfg.Servers.Where(x => !string.IsNullOrWhiteSpace(x)))
-            hosts[s.Trim()] = ("Manuel", "");
+        var manual = Loc.T("Source.Manual");
+        foreach (var s in cfg.Servers.Select(x => x.Trim()).Where(x => x.Length > 0))
+            if (!hosts.Keys.Any(h => Net.SameHost(h, s))) hosts[s] = (manual, "");
 
         var brokerTasks = cfg.Brokers.Where(b => !string.IsNullOrWhiteSpace(b)).Select(async b =>
         {
@@ -49,16 +50,15 @@ public static class FarmService
         {
             if (bd.Error != null) { result.Errors.Add($"Broker {bd.Broker} : {bd.Error}"); continue; }
             foreach (var (host, coll) in bd.Hosts)
-                if (!hosts.ContainsKey(host)) hosts[host] = ("Broker", coll);
-                else hosts[host] = (hosts[host].source, coll);
+            {
+                var key = hosts.Keys.FirstOrDefault(h => Net.SameHost(h, host));
+                hosts[key ?? host] = (key == null ? Loc.T("Source.Broker") : hosts[key].source, coll);
+            }
             brokerSessions.AddRange(bd.Sessions);
         }
 
         foreach (var ex in cfg.ExcludedServers)
-        {
-            var k = hosts.Keys.FirstOrDefault(h => Net.SameHost(h, ex));
-            if (k != null) hosts.Remove(k);
-        }
+            foreach (var k in hosts.Keys.Where(h => Net.SameHost(h, ex)).ToList()) hosts.Remove(k);
 
         var domainFilter = cfg.DomainFilter.Where(d => !string.IsNullOrWhiteSpace(d)).Select(d => d.Trim()).ToList();
         var sessions = new ConcurrentBag<RdsSession>();
@@ -106,7 +106,7 @@ public static class FarmService
                     srv.Status = "";
                     srv.LastSeen = DateTime.Now;
                 }
-                catch (OperationCanceledException) { throw; }
+                catch (OperationCanceledException) { Net.Observe(wmiTask); throw; }
                 catch (Exception ex)
                 {
                     srv.Online = false;
@@ -134,7 +134,8 @@ public static class FarmService
 
         var bsIndex = new Dictionary<string, BrokerSessionInfo>(StringComparer.OrdinalIgnoreCase);
         foreach (var b in brokerSessions) bsIndex[$"{Net.ShortName(b.HostServer)}#{b.SessionId}"] = b;
-        var collByHost = hosts.ToDictionary(k => Net.ShortName(k.Key), v => v.Value.collection, StringComparer.OrdinalIgnoreCase);
+        var collByHost = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var kv in hosts) collByHost[Net.ShortName(kv.Key)] = kv.Value.collection;
 
         foreach (var s in sessions)
         {
@@ -158,6 +159,7 @@ public static class FarmService
         result.FailedServers = failed;
 
         foreach (var k in ServerCache.Keys.Where(k => !hosts.ContainsKey(k)).ToList()) ServerCache.TryRemove(k, out _);
+        WmiService.Prune(hosts.Keys);
 
         Log.Info($"Actualisation : {result.Sessions.Count} session(s), {result.Servers.Count} serveur(s), {failed} en erreur - {sw.Elapsed.TotalSeconds:0.0}s");
         return result;

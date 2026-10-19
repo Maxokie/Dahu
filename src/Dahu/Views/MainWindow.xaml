@@ -7,6 +7,7 @@
         Icon="/Assets/dahu.ico"
         MinWidth="900" MinHeight="560"
         FontFamily="Segoe UI" FontSize="12.5"
+        Background="{DynamicResource WindowBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterScreen">
     <Window.InputBindings>
         <KeyBinding Key="F5" Command="{x:Static core:Commands.Refresh}" />
@@ -24,7 +25,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushLight}" BorderThickness="0,0,0,1" Padding="10,8">
+        <Border Grid.Row="0" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrushLight}" BorderThickness="0,0,0,1" Padding="10,8">
             <DockPanel LastChildFill="True">
                 <Button x:Name="BtnRefresh" DockPanel.Dock="Left" Style="{StaticResource PrimaryButton}" Click="Refresh_Click" ToolTip="F5">
                     <StackPanel Orientation="Horizontal">
@@ -40,7 +41,7 @@
                 </ComboBox>
                 <Grid>
                     <TextBox x:Name="TxtFilter" TextChanged="Filter_Changed" MaxWidth="600" HorizontalAlignment="Left" MinWidth="360" />
-                    <TextBlock x:Name="TxtFilterHint" Text="{Binding [Filter.Placeholder], Source={x:Static core:Loc.I}}" Foreground="#999" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" HorizontalAlignment="Left" />
+                    <TextBlock x:Name="TxtFilterHint" Text="{Binding [Filter.Placeholder], Source={x:Static core:Loc.I}}" Foreground="{DynamicResource TextHintBrush}" Margin="8,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" HorizontalAlignment="Left" />
                 </Grid>
             </DockPanel>
         </Border>
@@ -53,11 +54,11 @@
                         <Style TargetType="DataGridRow">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding State}" Value="Disconnected">
-                                    <Setter Property="Foreground" Value="{StaticResource DisconnectedBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource DisconnectedBrush}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsUserSession}" Value="False">
                                     <Setter Property="FontStyle" Value="Italic" />
-                                    <Setter Property="Foreground" Value="#999" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextHintBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -113,10 +114,10 @@
                         <Style TargetType="DataGridRow">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding Online}" Value="False">
-                                    <Setter Property="Foreground" Value="{StaticResource ErrBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource ErrBrush}" />
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding InMaintenance}" Value="True">
-                                    <Setter Property="Background" Value="#FFF4E5" />
+                                    <Setter Property="Background" Value="{DynamicResource MaintenanceBrush}" />
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -132,7 +133,7 @@
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid>
-                                        <ProgressBar Value="{Binding Cpu, Mode=OneWay}" Maximum="100" Height="14" Foreground="{StaticResource AccentLightBrush}" Background="#EEE" BorderThickness="0" />
+                                        <ProgressBar Value="{Binding Cpu, Mode=OneWay}" Maximum="100" Height="14" Foreground="{DynamicResource AccentLightBrush}" Background="{DynamicResource ProgressTrackBrush}" BorderThickness="0" />
                                         <TextBlock Text="{Binding Cpu, StringFormat={}{0:0}%}" HorizontalAlignment="Center" FontSize="11" />
                                     </Grid>
                                 </DataTemplate>
@@ -142,7 +143,7 @@
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
                                     <Grid>
-                                        <ProgressBar Value="{Binding MemoryPercent, Mode=OneWay}" Maximum="100" Height="14" Foreground="{StaticResource OkBrush}" Background="#EEE" BorderThickness="0" />
+                                        <ProgressBar Value="{Binding MemoryPercent, Mode=OneWay}" Maximum="100" Height="14" Foreground="{DynamicResource OkBrush}" Background="{DynamicResource ProgressTrackBrush}" BorderThickness="0" />
                                         <TextBlock Text="{Binding MemoryPercent, StringFormat={}{0:0}%}" HorizontalAlignment="Center" FontSize="11" />
                                     </Grid>
                                 </DataTemplate>
@@ -184,7 +185,7 @@
                     <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,8">
                         <Button x:Name="BtnScanProfiles" Style="{StaticResource PrimaryButton}" Click="ScanProfiles_Click" Content="{Binding [Btn.Refresh], Source={x:Static core:Loc.I}}" />
                         <TextBox x:Name="TxtProfileFilter" Width="300" TextChanged="ProfileFilter_Changed" ToolTip="{Binding [Profiles.Filter], Source={x:Static core:Loc.I}}" />
-                        <TextBlock x:Name="TxtProfileStatus" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#555" />
+                        <TextBlock x:Name="TxtProfileStatus" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{DynamicResource TextMutedBrush}" />
                     </StackPanel>
                     <DataGrid x:Name="GridProfiles">
                         <DataGrid.RowStyle>
@@ -213,7 +214,7 @@
                                 <MenuItem Header="{Binding [Menu.AdInfo], Source={x:Static core:Loc.I}}" Click="ProfileAd_Click" />
                                 <MenuItem Header="{Binding [Menu.ProfileHistory], Source={x:Static core:Loc.I}}" Click="ProfileHistory_Click" />
                                 <Separator />
-                                <MenuItem Header="{Binding [Menu.DeleteProfile], Source={x:Static core:Loc.I}}" Click="ProfileDelete_Click" Foreground="{StaticResource ErrBrush}" />
+                                <MenuItem Header="{Binding [Menu.DeleteProfile], Source={x:Static core:Loc.I}}" Click="ProfileDelete_Click" Foreground="{DynamicResource ErrBrush}" />
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                     </DataGrid>
@@ -231,7 +232,7 @@
                         <TextBlock Text="{Binding [Config.HistoryDays], Source={x:Static core:Loc.I}}" VerticalAlignment="Center" Margin="0,0,6,0" />
                         <TextBox x:Name="TxtHistoryDays" Width="50" Margin="0,0,12,0" />
                         <Button x:Name="BtnHistory" Style="{StaticResource PrimaryButton}" Click="ReadHistory_Click" Content="{Binding [Btn.Search], Source={x:Static core:Loc.I}}" />
-                        <TextBlock x:Name="TxtHistoryStatus" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#555" />
+                        <TextBlock x:Name="TxtHistoryStatus" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="{DynamicResource TextMutedBrush}" />
                     </StackPanel>
                     <DataGrid x:Name="GridHistory">
                         <DataGrid.Columns>
@@ -288,7 +289,7 @@
                                     <ColumnDefinition Width="90" />
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
-                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
+                                    <RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition />
                                 </Grid.RowDefinitions>
                                 <TextBlock Grid.Row="0" Style="{StaticResource Label}" Text="{Binding [Config.Refresh], Source={x:Static core:Loc.I}}" />
                                 <TextBox Grid.Row="0" Grid.Column="1" x:Name="CfgRefresh" Margin="0,4" />
@@ -299,6 +300,11 @@
                                 <TextBlock Grid.Row="3" Style="{StaticResource Label}" Text="{Binding [Config.Language], Source={x:Static core:Loc.I}}" />
                                 <ComboBox Grid.Row="3" Grid.Column="1" x:Name="CfgLanguage" Margin="0,4" SelectedValuePath="Code" DisplayMemberPath="Name"
                                           ItemsSource="{x:Static core:Loc.Languages}" />
+                                <TextBlock Grid.Row="4" Style="{StaticResource Label}" Text="{Binding [Config.Theme], Source={x:Static core:Loc.I}}" />
+                                <ComboBox Grid.Row="4" Grid.Column="1" x:Name="CfgTheme" Margin="0,4" SelectedValuePath="Tag">
+                                    <ComboBoxItem Tag="light" Content="{Binding [Theme.Light], Source={x:Static core:Loc.I}}" />
+                                    <ComboBoxItem Tag="dark" Content="{Binding [Theme.Dark], Source={x:Static core:Loc.I}}" />
+                                </ComboBox>
                             </Grid>
                             <CheckBox x:Name="CfgAutoRefresh" Content="{Binding [Config.AutoRefresh], Source={x:Static core:Loc.I}}" />
                             <CheckBox x:Name="CfgConfirm" Content="{Binding [Config.Confirm], Source={x:Static core:Loc.I}}" />
@@ -334,10 +340,10 @@
             <TabItem Header="{Binding [Tab.About], Source={x:Static core:Loc.I}}">
                 <DockPanel Margin="16">
                     <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Left">
-                        <TextBlock Foreground="#666">
+                        <TextBlock Foreground="{DynamicResource TextMutedBrush}">
                             <Run Text="{Binding [About.Author], Source={x:Static core:Loc.I}, Mode=OneWay}" /><Run Text=" - " /><Hyperlink NavigateUri="https://maxokie.win/" RequestNavigate="Link_RequestNavigate">https://maxokie.win/</Hyperlink>
                         </TextBlock>
-                        <TextBlock Margin="0,4,0,0" Foreground="#666">
+                        <TextBlock Margin="0,4,0,0" Foreground="{DynamicResource TextMutedBrush}">
                             <Run Text="GitHub repo: " /><Hyperlink NavigateUri="https://github.com/Maxokie/Dahu" RequestNavigate="Link_RequestNavigate">https://github.com/Maxokie/Dahu</Hyperlink>
                         </TextBlock>
                     </StackPanel>
@@ -345,22 +351,22 @@
                         <StackPanel Orientation="Horizontal">
                             <Image Source="/Assets/dahu.ico" Width="64" Height="64" Margin="0,0,16,0" />
                             <StackPanel VerticalAlignment="Center">
-                                <TextBlock Text="Dahu" FontSize="28" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                                <TextBlock x:Name="TxtVersion" Foreground="#666" />
+                                <TextBlock Text="Dahu" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" />
+                                <TextBlock x:Name="TxtVersion" Foreground="{DynamicResource TextMutedBrush}" />
                             </StackPanel>
                         </StackPanel>
                         <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" LineHeight="20" Text="{Binding [About.Text], Source={x:Static core:Loc.I}}" />
-                        <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="#666" x:Name="TxtIdentity" />
+                        <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="{DynamicResource TextMutedBrush}" x:Name="TxtIdentity" />
                     </StackPanel>
                 </DockPanel>
             </TabItem>
         </TabControl>
 
-        <Border Grid.Row="2" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrushLight}" BorderThickness="0,1,0,0" Padding="10,4">
+        <Border Grid.Row="2" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrushLight}" BorderThickness="0,1,0,0" Padding="10,4">
             <DockPanel>
-                <TextBlock x:Name="TxtErrors" DockPanel.Dock="Right" Foreground="{StaticResource ErrBrush}" Margin="12,0,0,0" Cursor="Hand" MouseLeftButtonUp="Errors_Click" />
-                <TextBlock x:Name="TxtUser" DockPanel.Dock="Right" Foreground="#666" Margin="12,0,0,0" />
-                <TextBlock x:Name="TxtStatus" Foreground="#333" />
+                <TextBlock x:Name="TxtErrors" DockPanel.Dock="Right" Foreground="{DynamicResource ErrBrush}" Margin="12,0,0,0" Cursor="Hand" MouseLeftButtonUp="Errors_Click" />
+                <TextBlock x:Name="TxtUser" DockPanel.Dock="Right" Foreground="{DynamicResource TextMutedBrush}" Margin="12,0,0,0" />
+                <TextBlock x:Name="TxtStatus" Foreground="{DynamicResource TextSoftBrush}" />
             </DockPanel>
         </Border>
     </Grid>

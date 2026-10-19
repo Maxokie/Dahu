@@ -15,20 +15,24 @@ namespace Dahu.Views;
 
 public partial class MainWindow : Window
 {
-    private readonly ObservableCollection<RdsSession> _sessions = new();
+    private readonly BulkObservableCollection<RdsSession> _sessions = new();
     private readonly ObservableCollection<RdsServer> _servers = new();
-    private readonly ObservableCollection<ProfileEntry> _profiles = new();
-    private readonly ObservableCollection<HistoryEntry> _history = new();
+    private readonly BulkObservableCollection<ProfileEntry> _profiles = new();
+    private readonly BulkObservableCollection<HistoryEntry> _history = new();
     private readonly ICollectionView _sessionsView, _profilesView;
     private readonly DispatcherTimer _timer = new();
-    private CancellationTokenSource? _refreshCts;
+    private CancellationTokenSource? _refreshCts, _profileCts;
     private int _refreshing;
     private List<string> _lastErrors = new();
+    private string _filter = "", _profileFilter = "";
+    private int? _filterId;
+    private int _stateFilter;
     private AppConfig Cfg => ConfigService.Current;
 
     public MainWindow()
     {
         InitializeComponent();
+        Theme.Attach(this);
         Width = Cfg.WindowWidth; Height = Cfg.WindowHeight;
         if (Cfg.WindowMaximized) WindowState = WindowState.Maximized;
 
@@ -44,7 +48,7 @@ public partial class MainWindow : Window
         TxtUser.Text = $"{Environment.UserDomainName}\\{Environment.UserName} @ {Environment.MachineName}"
                      + (AltAccount.ActiveUser != null ? string.Format(Loc.T("Alt.Status"), AltAccount.ActiveUser) : "");
         TxtIdentity.Text = $"{TxtUser.Text}\n{string.Format(Loc.T("Config.File"), ConfigService.FilePath)}\n{Log.Path}";
-        TxtVersion.Text = $"Version {typeof(App).Assembly.GetName().Version?.ToString(2)} - .NET {Environment.Version} - {(AppPaths.IsPortable ? "portable" : "%APPDATA%")}";
+        TxtVersion.Text = $"Version {typeof(App).Assembly.GetName().Version?.ToString(3)} - .NET {Environment.Version} - {(AppPaths.IsPortable ? "portable" : "%APPDATA%")}";
         TxtStatus.Text = Loc.T("Status.Ready");
         LoadConfigToForm();
         ApplySessionColumns();
@@ -72,6 +76,7 @@ public partial class MainWindow : Window
             try
             {
                 _refreshCts?.Cancel();
+                _profileCts?.Cancel();
                 Cfg.WindowMaximized = WindowState == WindowState.Maximized;
                 if (WindowState == WindowState.Normal) { Cfg.WindowWidth = Width; Cfg.WindowHeight = Height; }
                 ConfigService.Save();
@@ -88,7 +93,7 @@ public partial class MainWindow : Window
             if (info == null || !IsLoaded) return;
             if (string.Equals(Cfg.IgnoredUpdateVersion, info.Tag, StringComparison.OrdinalIgnoreCase)) return;
 
-            var current = typeof(App).Assembly.GetName().Version?.ToString(2) ?? "";
+            var current = typeof(App).Assembly.GetName().Version?.ToString(3) ?? "";
             var (update, ignore) = Dialogs.UpdateAvailable(this, current, info.Tag);
             if (ignore)
             {
@@ -117,12 +122,13 @@ public partial class MainWindow : Window
     private async Task RefreshAsync()
     {
         if (Interlocked.CompareExchange(ref _refreshing, 1, 0) != 0) return;
-        _refreshCts = new CancellationTokenSource();
+        using var cts = new CancellationTokenSource();
+        _refreshCts = cts;
         BtnRefresh.IsEnabled = false;
         TxtStatus.Text = Loc.T("Status.Refreshing");
         try
         {
-            var r = await FarmService.RefreshAsync(Cfg, null, _refreshCts.Token);
+            var r = await FarmService.RefreshAsync(Cfg, null, cts.Token);
             ApplyResult(r);
             _lastErrors = r.Errors;
             TxtErrors.Text = r.Errors.Count > 0 ? $"\u26A0 {r.Errors.Count}" : "";
@@ -137,6 +143,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            _refreshCts = null;
             BtnRefresh.IsEnabled = true;
             Interlocked.Exchange(ref _refreshing, 0);
         }
@@ -145,8 +152,7 @@ public partial class MainWindow : Window
     private void ApplyResult(RefreshResult r)
     {
         var selected = GridSessions.SelectedItems.Cast<RdsSession>().Select(s => s.Key).ToHashSet();
-        _sessions.Clear();
-        foreach (var s in r.Sessions) _sessions.Add(s);
+        _sessions.ReplaceAll(r.Sessions);
         if (selected.Count > 0)
             foreach (var s in _sessions.Where(s => selected.Contains(s.Key))) GridSessions.SelectedItems.Add(s);
 
@@ -200,19 +206,19 @@ public partial class MainWindow : Window
     private bool SessionFilter(object o)
     {
         if (o is not RdsSession s) return false;
-        if (CmbStateFilter.SelectedIndex == 1 && s.State != SessionState.Active) return false;
-        if (CmbStateFilter.SelectedIndex == 2 && s.State != SessionState.Disconnected) return false;
-        var f = TxtFilter.Text.Trim();
+        if (_stateFilter == 1 && s.State != SessionState.Active) return false;
+        if (_stateFilter == 2 && s.State != SessionState.Disconnected) return false;
+        var f = _filter;
         if (f.Length == 0) return true;
         return Contains(s.UserName, f) || Contains(s.Server, f) || Contains(s.ClientName, f) || Contains(s.ClientIp, f)
             || Contains(s.Collection, f) || Contains(s.Domain, f) || Contains(s.StateText, f) || Contains(s.AppType, f)
-            || s.SessionId.ToString() == f;
+            || s.SessionId == _filterId;
     }
 
     private bool ProfileFilter(object o)
     {
         if (o is not ProfileEntry p) return false;
-        var f = TxtProfileFilter.Text.Trim();
+        var f = _profileFilter;
         return f.Length == 0 || Contains(p.User, f) || Contains(p.Sid, f) || Contains(p.FileName, f) || Contains(p.Kind, f) || Contains(p.Share, f);
     }
 
@@ -220,13 +226,23 @@ public partial class MainWindow : Window
 
     private void Filter_Changed(object sender, RoutedEventArgs e)
     {
+        _filter = TxtFilter.Text.Trim();
+        _filterId = int.TryParse(_filter, out var id) ? id : null;
         TxtFilterHint.Visibility = TxtFilter.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         _sessionsView.Refresh();
     }
 
-    private void StateFilter_Changed(object sender, SelectionChangedEventArgs e) => _sessionsView?.Refresh();
+    private void StateFilter_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        _stateFilter = (sender as ComboBox)?.SelectedIndex ?? 0;
+        _sessionsView?.Refresh();
+    }
 
-    private void ProfileFilter_Changed(object sender, TextChangedEventArgs e) => _profilesView.Refresh();
+    private void ProfileFilter_Changed(object sender, TextChangedEventArgs e)
+    {
+        _profileFilter = TxtProfileFilter.Text.Trim();
+        _profilesView.Refresh();
+    }
 
     private void FocusFilter(object sender, ExecutedRoutedEventArgs e) { TxtFilter.Focus(); TxtFilter.SelectAll(); }
 
@@ -339,18 +355,17 @@ public partial class MainWindow : Window
         await ReadHistoryAsync();
     }
 
-    private void PingClient_Click(object sender, RoutedEventArgs e)
-    {
-        var s = OneSession(); if (s == null) return;
-        var host = !string.IsNullOrEmpty(s.ClientIp) ? s.ClientIp : s.ClientName;
-        if (!string.IsNullOrEmpty(host)) Tools.Ping(host);
-    }
+    private void PingClient_Click(object sender, RoutedEventArgs e) => ClientTool(Tools.Ping);
 
-    private void RdpClient_Click(object sender, RoutedEventArgs e)
+    private void RdpClient_Click(object sender, RoutedEventArgs e) => ClientTool(Tools.Rdp);
+
+    private void ClientTool(Action<string> tool)
     {
         var s = OneSession(); if (s == null) return;
         var host = !string.IsNullOrEmpty(s.ClientIp) ? s.ClientIp : s.ClientName;
-        if (!string.IsNullOrEmpty(host)) Tools.Rdp(host);
+        if (string.IsNullOrEmpty(host)) return;
+        try { tool(host); }
+        catch (Exception ex) { Dialogs.Error(this, ex.Message); }
     }
 
     private void CopyUser_Click(object sender, RoutedEventArgs e) { var s = OneSession(); if (s != null) TrySetClipboard(s.QualifiedUser); }
@@ -464,17 +479,19 @@ public partial class MainWindow : Window
         if (!BtnScanProfiles.IsEnabled) return;
         BtnScanProfiles.IsEnabled = false;
         TxtProfileStatus.Text = Loc.T("Status.Refreshing");
+        using var cts = new CancellationTokenSource();
+        _profileCts = cts;
         try
         {
             var progress = new Progress<string>(s => TxtProfileStatus.Text = s);
-            var list = await Task.Run(() => ProfileService.Scan(Cfg.UpdShares, Cfg.FsLogixShares, CancellationToken.None, s => ((IProgress<string>)progress).Report(s)));
-            _profiles.Clear();
-            foreach (var p in list.OrderBy(p => p.User).ThenBy(p => p.FileName)) _profiles.Add(p);
+            var list = await Task.Run(() => ProfileService.Scan(Cfg.UpdShares, Cfg.FsLogixShares, cts.Token, s => ((IProgress<string>)progress).Report(s)), cts.Token);
+            _profiles.ReplaceAll(list.OrderBy(p => p.User).ThenBy(p => p.FileName));
             var total = list.Sum(p => p.SizeBytes) / (double)(1L << 30);
             TxtProfileStatus.Text = string.Format(Loc.T("Profiles.Status"), list.Count, total, list.Count(p => p.Mounted));
         }
+        catch (OperationCanceledException) { TxtProfileStatus.Text = ""; }
         catch (Exception ex) { TxtProfileStatus.Text = ex.Message; Log.Error("Profils", ex); }
-        finally { BtnScanProfiles.IsEnabled = true; }
+        finally { _profileCts = null; BtnScanProfiles.IsEnabled = true; }
     }
 
     private ProfileEntry? OneProfile() => GridProfiles.SelectedItem as ProfileEntry;
@@ -544,8 +561,9 @@ public partial class MainWindow : Window
                 catch (Exception ex) { lock (errors) errors.Add($"{srv} : {ex.Message}"); Log.Warn($"Historique {srv} : {ex.Message}"); }
             });
             await Task.WhenAll(tasks);
-            foreach (var h in all.OrderByDescending(h => h.Time)) _history.Add(h);
-            TxtHistoryStatus.Text = $"{all.Count} - {servers.Count - errors.Count}/{servers.Count} serveur(s)" + (errors.Count > 0 ? $" - {errors.Count} erreur(s)" : "");
+            _history.ReplaceAll(all.OrderByDescending(h => h.Time));
+            TxtHistoryStatus.Text = string.Format(Loc.T("History.Status"), all.Count, servers.Count - errors.Count, servers.Count)
+                + (errors.Count > 0 ? string.Format(Loc.T("History.Errors"), errors.Count) : "");
             TxtHistoryStatus.ToolTip = errors.Count > 0 ? string.Join("\n", errors) : null;
         }
         catch (Exception ex) { TxtHistoryStatus.Text = ex.Message; }
@@ -572,6 +590,7 @@ public partial class MainWindow : Window
         CfgHistoryDays.Text = c.HistoryDays.ToString();
         TxtHistoryDays.Text = c.HistoryDays.ToString();
         CfgLanguage.SelectedValue = Loc.Normalize(c.Language);
+        CfgTheme.SelectedValue = Theme.Normalize(c.Theme);
         CfgAutoRefresh.IsChecked = c.AutoRefresh;
         CfgConfirm.IsChecked = c.ConfirmActions;
         CfgSystem.IsChecked = c.ShowSystemSessions;
@@ -604,6 +623,7 @@ public partial class MainWindow : Window
         var lang = CfgLanguage.SelectedValue as string ?? Loc.Normalize(c.Language);
         var langChanged = lang != c.Language;
         c.Language = lang;
+        c.Theme = Theme.Normalize(CfgTheme.SelectedValue as string);
         c.AutoRefresh = CfgAutoRefresh.IsChecked == true;
         c.ConfirmActions = CfgConfirm.IsChecked == true;
         c.ShowSystemSessions = CfgSystem.IsChecked == true;
@@ -616,6 +636,7 @@ public partial class MainWindow : Window
         {
             ConfigService.Save();
             if (langChanged) Loc.I.Language = lang;
+            if (c.Theme != Theme.Current) Theme.Apply(c.Theme);
             LoadConfigToForm();
             ApplySessionColumns();
             ApplyTimer();
@@ -637,7 +658,7 @@ public partial class MainWindow : Window
     {
         var dlg = new OpenFileDialog { Filter = "JSON (*.json)|*.json" };
         if (dlg.ShowDialog(this) != true) return;
-        try { ConfigService.Import(dlg.FileName); Loc.I.Language = Cfg.Language; LoadConfigToForm(); ApplySessionColumns(); GridLayout.RestoreAll(); ApplyTimer(); }
+        try { ConfigService.Import(dlg.FileName); Loc.I.Language = Cfg.Language; Theme.Apply(Cfg.Theme); LoadConfigToForm(); ApplySessionColumns(); GridLayout.RestoreAll(); ApplyTimer(); BtnPause.IsChecked = !Cfg.AutoRefresh; }
         catch (Exception ex) { Dialogs.Error(this, ex.Message); }
     }
 

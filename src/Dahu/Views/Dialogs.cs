@@ -20,6 +20,9 @@ internal static class Dialogs
             FontFamily = new FontFamily("Segoe UI"), FontSize = 12.5,
             ShowInTaskbar = false, Icon = owner.Icon,
         };
+        win.SetResourceReference(Window.BackgroundProperty, "WindowBrush");
+        win.SetResourceReference(Window.ForegroundProperty, "TextBrush");
+        Theme.Attach(win);
         win.KeyDown += (_, e) => { if (e.Key == Key.Escape) win.Close(); };
         return win;
     }
@@ -65,7 +68,7 @@ internal static class Dialogs
         return accepted ? (title.Text.Trim(), body.Text.Trim()) : null;
     }
 
-    public static Window KeyValues(Window owner, string title, IEnumerable<(string key, string value)> rows, IEnumerable<(string label, Action onClick)>? actions = null, double w = 620, double h = 560)
+    public static Window KeyValues(Window owner, string title, IEnumerable<(string key, string value)> rows, IEnumerable<(string label, Func<Task> onClick)>? actions = null, double w = 620, double h = 560)
     {
         var win = Base(owner, title, w, h);
         var dock = new DockPanel { Margin = new Thickness(12) };
@@ -75,7 +78,13 @@ internal static class Dialogs
             foreach (var (label, onClick) in actions)
             {
                 var b = new Button { Content = label };
-                b.Click += (_, _) => { try { onClick(); } catch (Exception ex) { Error(win, ex.Message); } };
+                b.Click += async (_, _) =>
+                {
+                    b.IsEnabled = false;
+                    try { await onClick(); }
+                    catch (Exception ex) { Error(win, ex.Message); }
+                    finally { b.IsEnabled = true; }
+                };
                 bar.Children.Add(b);
             }
             DockPanel.SetDock(bar, Dock.Top);
@@ -106,7 +115,8 @@ internal static class Dialogs
         var bar = new DockPanel { Margin = new Thickness(0, 0, 0, 8) };
         var refresh = new Button { Content = Loc.T("Btn.Refresh"), Style = (Style)owner.FindResource("PrimaryButton") };
         var kill = new Button { Content = Loc.T("Btn.Kill") };
-        var status = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0), Foreground = Brushes.Gray };
+        var status = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+        status.SetResourceReference(TextBlock.ForegroundProperty, "TextMutedBrush");
         var filter = new TextBox { Width = 220, Margin = new Thickness(12, 0, 0, 0), ToolTip = Loc.T("Proc.Filter") };
         bar.Children.Add(refresh); bar.Children.Add(kill); bar.Children.Add(filter); bar.Children.Add(status);
         DockPanel.SetDock(bar, Dock.Top);
@@ -194,8 +204,8 @@ internal static class Dialogs
             (Loc.T("Ad.Field.Manager"), u.Manager),
             (Loc.T("Ad.Field.HomeDirectory"), u.HomeDirectory),
             (Loc.T("Ad.Field.ProfilePath"), u.ProfilePath),
-            ("TS profile path", u.TsProfilePath),
-            ("TS home directory", u.TsHomeDirectory),
+            (Loc.T("Ad.Field.TsProfilePath"), u.TsProfilePath),
+            (Loc.T("Ad.Field.TsHomeDirectory"), u.TsHomeDirectory),
             (Loc.T("Ad.Field.Created"), D(u.WhenCreated)),
             ("SID", u.Sid),
             ("DN", u.DistinguishedName),
@@ -203,24 +213,24 @@ internal static class Dialogs
         };
 
         Window? win = null;
-        var actions = new List<(string, Action)>
+        var actions = new List<(string, Func<Task>)>
         {
-            (u.Enabled ? Loc.T("Ad.Disable") : Loc.T("Ad.Enable"), () =>
+            (u.Enabled ? Loc.T("Ad.Disable") : Loc.T("Ad.Enable"), async () =>
             {
                 if (!Confirm(win!, string.Format(Loc.T(u.Enabled ? "Confirm.AdDisable" : "Confirm.AdEnable"), sam))) return;
-                AdService.SetEnabled(domain, sam, !u.Enabled);
+                await Task.Run(() => AdService.SetEnabled(domain, sam, !u.Enabled));
                 win!.Close(); _ = AdUser(owner, domain, sam);
             }),
-            (Loc.T("Ad.Unlock"), () =>
+            (Loc.T("Ad.Unlock"), async () =>
             {
                 if (!Confirm(win!, string.Format(Loc.T("Confirm.AdUnlock"), sam))) return;
-                AdService.Unlock(domain, sam);
+                await Task.Run(() => AdService.Unlock(domain, sam));
                 win!.Close(); _ = AdUser(owner, domain, sam);
             }),
-            (Loc.T("Ad.ForcePwd"), () =>
+            (Loc.T("Ad.ForcePwd"), async () =>
             {
                 if (!Confirm(win!, string.Format(Loc.T("Confirm.AdPwdChange"), sam))) return;
-                AdService.ExpirePassword(domain, sam);
+                await Task.Run(() => AdService.ExpirePassword(domain, sam));
                 win!.Close(); _ = AdUser(owner, domain, sam);
             }),
         };
@@ -258,6 +268,9 @@ internal static class Dialogs
             FontFamily = new FontFamily("Segoe UI"), FontSize = 12.5,
         };
         try { win.Icon = System.Windows.Media.Imaging.BitmapFrame.Create(new Uri("pack://application:,,,/Assets/dahu.ico")); } catch { }
+        win.SetResourceReference(Window.BackgroundProperty, "WindowBrush");
+        win.SetResourceReference(Window.ForegroundProperty, "TextBrush");
+        Theme.Attach(win);
         var sp = new StackPanel { Margin = new Thickness(14) };
         sp.Children.Add(new TextBlock { Text = string.Format(Loc.T("Alt.PromptText"), user), TextWrapping = TextWrapping.Wrap });
         var pwd = new PasswordBox { Margin = new Thickness(0, 6, 0, 8) };

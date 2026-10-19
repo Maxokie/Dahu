@@ -13,7 +13,7 @@
     <StartupObject>Dahu.App</StartupObject>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <ApplicationIcon>Assets\dahu.ico</ApplicationIcon>
-    <Version>1.1</Version>
+    <Version>1.2.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Company>Dahu</Company>
     <Product>Dahu - Administration RDS</Product>

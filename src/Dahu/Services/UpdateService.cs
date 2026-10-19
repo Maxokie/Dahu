@@ -17,7 +17,7 @@ public static class UpdateService
         {
             var current = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd("Dahu/" + current.ToString(2));
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("Dahu/" + current.ToString(3));
             http.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
             using var resp = await http.GetAsync(ApiUrl).ConfigureAwait(false);

@@ -1,3 +1,5 @@
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Dahu.Core;
@@ -15,6 +17,19 @@ public abstract class Observable : INotifyPropertyChanged
         return true;
     }
     public void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+}
+
+public sealed class BulkObservableCollection<T> : ObservableCollection<T>
+{
+    public void ReplaceAll(IEnumerable<T> items)
+    {
+        CheckReentrancy();
+        Items.Clear();
+        foreach (var item in items) Items.Add(item);
+        OnPropertyChanged(new PropertyChangedEventArgs(nameof(Count)));
+        OnPropertyChanged(new PropertyChangedEventArgs("Item[]"));
+        OnCollectionChanged(new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
 }
 
 public enum SessionState
@@ -67,7 +82,11 @@ public sealed class RdsSession : Observable
         _ => Loc.T("State.Init"),
     };
 
-    public string IdleText => IdleTime is { } t ? (t.TotalDays >= 1 ? $"{(int)t.TotalDays}j {t.Hours:00}:{t.Minutes:00}" : $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}") : "";
+    public string IdleText => IdleTime is { } t
+        ? (t.TotalDays >= 1
+            ? string.Format(Loc.T("Fmt.Days"), (int)t.TotalDays, $"{t.Hours:00}:{t.Minutes:00}")
+            : $"{(int)t.TotalHours:00}:{t.Minutes:00}:{t.Seconds:00}")
+        : "";
 }
 
 public sealed class RdsServer : Observable
@@ -129,8 +148,10 @@ public sealed class ProfileEntry
     public long SizeBytes { get; set; }
     public DateTime Modified { get; set; }
     public bool Mounted { get; set; }
-    public string SizeText => SizeBytes >= 1L << 30 ? $"{SizeBytes / (double)(1L << 30):0.00} Go" : $"{SizeBytes / (double)(1L << 20):0} Mo";
-    public string MountedText => Mounted ? "Oui" : "";
+    public string SizeText => SizeBytes >= 1L << 30
+        ? $"{SizeBytes / (double)(1L << 30):0.00} {Loc.T("Unit.GB")}"
+        : $"{SizeBytes / (double)(1L << 20):0} {Loc.T("Unit.MB")}";
+    public string MountedText => Mounted ? Loc.T("Common.Yes") : "";
 }
 
 public sealed class HistoryEntry

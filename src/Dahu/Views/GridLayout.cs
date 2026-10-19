@@ -50,6 +50,14 @@ public static class GridLayout
         var defaults = grid.Columns.ToDictionary(c => c, c => c.Width);
         AttachResize(grid);
         grid.Loaded += (_, _) => FreezeLater(grid);
+        grid.PreviewMouseRightButtonDown += (_, e) =>
+        {
+            if (grid.SelectionUnit == DataGridSelectionUnit.Cell) return;
+            var row = RowOf(grid, e.OriginalSource as DependencyObject);
+            if (row == null || row.IsSelected) return;
+            grid.SelectedItems.Clear();
+            row.IsSelected = true;
+        };
         grid.PreviewMouseRightButtonUp += (_, e) =>
         {
             var col = HeaderColumn(grid, e.OriginalSource as DependencyObject, out var onHeader);
@@ -82,6 +90,13 @@ public static class GridLayout
             }
         }
         onHeader = false;
+        return null;
+    }
+
+    private static DataGridRow? RowOf(DataGrid grid, DependencyObject? source)
+    {
+        for (var d = source; d != null && d != grid; d = d is Visual ? VisualTreeHelper.GetParent(d) : LogicalTreeHelper.GetParent(d))
+            if (d is DataGridRow row) return row;
         return null;
     }
 
@@ -132,12 +147,18 @@ public static class GridLayout
     private static void Freeze(DataGrid grid)
     {
         if (!grid.IsLoaded) return;
-        foreach (var col in grid.Columns)
+        var restoring = _restoring;
+        _restoring = true;
+        try
         {
-            if (!col.Width.IsStar) continue;
-            var w = Math.Max(col.ActualWidth, Math.Max(col.MinWidth, 150));
-            col.Width = new DataGridLength(w, DataGridLengthUnitType.Pixel);
+            foreach (var col in grid.Columns)
+            {
+                if (!col.Width.IsStar) continue;
+                var w = Math.Max(col.ActualWidth, Math.Max(col.MinWidth, 150));
+                col.Width = new DataGridLength(w, DataGridLengthUnitType.Pixel);
+            }
         }
+        finally { _restoring = restoring; }
     }
 
     private static void OnChanged(object? sender, EventArgs e)

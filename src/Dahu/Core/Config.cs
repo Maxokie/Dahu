@@ -28,6 +28,8 @@ public sealed class AppConfig
 
     public string Language { get; set; } = Loc.SystemDefault;
 
+    public string Theme { get; set; } = Core.Theme.Light;
+
     public bool UseAltAccount { get; set; } = false;
 
     public string AltAccountUser { get; set; } = "";

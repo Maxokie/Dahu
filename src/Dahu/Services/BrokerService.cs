@@ -1,4 +1,3 @@
-using System.Management;
 using Dahu.Core;
 
 namespace Dahu.Services;
@@ -28,31 +27,27 @@ public static class BrokerService
     public static BrokerData Query(string broker, TimeSpan timeout, CancellationToken ct)
     {
         var data = new BrokerData { Broker = broker };
-        var eo = new EnumerationOptions { Timeout = timeout, ReturnImmediately = true, Rewindable = false };
 
         var rdms = WmiService.Connect(broker, "root\\cimv2\\rdms", timeout);
         ct.ThrowIfCancellationRequested();
 
-        using (var s = new ManagementObjectSearcher(rdms, new ObjectQuery("SELECT Name, Alias FROM Win32_RDSHCollection"), eo))
-            foreach (ManagementObject c in s.Get())
-                data.CollectionsByAlias[c["Alias"] as string ?? ""] = c["Name"] as string ?? "";
+        foreach (var c in WmiService.Query(rdms, "SELECT Name, Alias FROM Win32_RDSHCollection", timeout))
+            data.CollectionsByAlias[c["Alias"] as string ?? ""] = c["Name"] as string ?? "";
 
         ct.ThrowIfCancellationRequested();
-        using (var s = new ManagementObjectSearcher(rdms, new ObjectQuery("SELECT Name, CollectionAlias FROM Win32_RDSHServer"), eo))
-            foreach (ManagementObject h in s.Get())
-            {
-                var name = h["Name"] as string ?? "";
-                if (string.IsNullOrWhiteSpace(name)) continue;
-                var alias = h["CollectionAlias"] as string ?? "";
-                data.Hosts[name] = data.CollectionsByAlias.TryGetValue(alias, out var cn) ? cn : alias;
-            }
+        foreach (var h in WmiService.Query(rdms, "SELECT Name, CollectionAlias FROM Win32_RDSHServer", timeout))
+        {
+            var name = h["Name"] as string ?? "";
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var alias = h["CollectionAlias"] as string ?? "";
+            data.Hosts[name] = data.CollectionsByAlias.TryGetValue(alias, out var cn) ? cn : alias;
+        }
 
         try
         {
             ct.ThrowIfCancellationRequested();
             var cimv2 = WmiService.Connect(broker, "root\\cimv2", timeout);
-            using var s = new ManagementObjectSearcher(cimv2, new ObjectQuery("SELECT HostServer, ServerName, UnifiedSessionId, SessionId, UserName, DomainName, CollectionAlias, ApplicationType FROM Win32_SessionDirectorySessionEx"), eo);
-            foreach (ManagementObject o in s.Get())
+            foreach (var o in WmiService.Query(cimv2, "SELECT HostServer, ServerName, UnifiedSessionId, SessionId, UserName, DomainName, CollectionAlias, ApplicationType FROM Win32_SessionDirectorySessionEx", timeout))
             {
                 var host = o["HostServer"] as string;
                 if (string.IsNullOrEmpty(host)) host = o["ServerName"] as string ?? "";

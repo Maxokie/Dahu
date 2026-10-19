@@ -1,4 +1,5 @@
-using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
@@ -23,11 +24,13 @@ public partial class App : Application
         var culture = Loc.Culture(Loc.I.Language);
         Thread.CurrentThread.CurrentUICulture = culture;
 
-        Log.Info($"=== Démarrage Dahu {typeof(App).Assembly.GetName().Version?.ToString(2)} - {Environment.UserDomainName}\\{Environment.UserName} sur {Environment.MachineName} - portable={AppPaths.IsPortable}"
+        Log.Info($"=== Démarrage Dahu {typeof(App).Assembly.GetName().Version?.ToString(3)} - {Environment.UserDomainName}\\{Environment.UserName} sur {Environment.MachineName} - portable={AppPaths.IsPortable}"
                  + (Services.AltAccount.ActiveUser != null ? $" - compte réseau {Services.AltAccount.ActiveUser}" : ""));
 
         var app = new App();
         app.InitializeComponent();
+        app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        Theme.Apply(cfg.Theme);
         app.DispatcherUnhandledException += OnDispatcherException;
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Error("Exception non gérée (domaine)", e.ExceptionObject as Exception);
         TaskScheduler.UnobservedTaskException += (_, e) => { Log.Error("Exception de tâche non observée", e.Exception); e.SetObserved(); };
@@ -44,6 +47,7 @@ public partial class App : Application
         }
 
         app.MainWindow = new Views.MainWindow();
+        app.ShutdownMode = ShutdownMode.OnMainWindowClose;
         app.MainWindow.Show();
         app.Run();
         Log.Info("=== Arrêt Dahu");
@@ -69,7 +73,8 @@ public partial class App : Application
 
     public static bool AcquireInstanceMutex()
     {
-        var mutexName = "Dahu-" + ConfigService.FilePath.ToLowerInvariant().GetHashCode().ToString("X");
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(ConfigService.FilePath.ToLowerInvariant()));
+        var mutexName = "Dahu-" + Convert.ToHexString(hash.AsSpan(0, 8));
         _mutex = new Mutex(true, mutexName, out var createdNew);
         if (createdNew) return true;
         _mutex.Dispose(); _mutex = null;
